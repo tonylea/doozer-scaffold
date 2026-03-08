@@ -1,0 +1,31 @@
+name: "PowerShell Module"
+
+structure:
+  - path: "src/classes/"
+  - path: "src/private/"
+  - path: "src/public/"
+  - path: "tests/unit-tests/private/"
+  - path: "tests/unit-tests/public/"
+  - path: "tests/integration-tests/"
+
+gitignore: |
+  *.ps1xml
+  *.nupkg
+  *.snk
+  output/
+  logs/
+  TestResults/
+  code-coverage.*
+  node_modules/
+  package-lock.json
+
+devcontainer:
+  features:
+    "ghcr.io/devcontainers/features/powershell:1": {}
+  extensions:
+    - "ms-vscode.powershell"
+  setup: |
+    pwsh -NoProfile -Command "Install-Module -Name Pester -Force -Scope AllUsers"
+    pwsh -NoProfile -Command "Install-Module -Name PSScriptAnalyzer -Force -Scope AllUsers"
+    pwsh -NoProfile -Command "Install-Module -Name PlatyPS -Force -Scope AllUsers"
+    pwsh -NoProfile -Command "Install-Module -Name BuildHelpers -Force -Scope AllUsers"
