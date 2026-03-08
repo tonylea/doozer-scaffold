@@ -1,5 +1,7 @@
 version: '1'
-domains: []
+domains:
+  - go-patterns
+  - doozer-scaffold
 governance:
   max_entries: 100
   warn_entries: 150
