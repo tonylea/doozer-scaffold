@@ -1,0 +1,1 @@
+{"type":"convention","content":"go:embed path must be relative to source file - technologies/ dir placed inside internal/techdef/ for techdef.Load() to embed with //go:embed technologies/*","classification":"foundational","recorded_at":"2026-03-08T20:19:03.389Z","outcomes":[{"status":"success","agent":"builder-foundation-1"}],"id":"mx-7e9456"}
