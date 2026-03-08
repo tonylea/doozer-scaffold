@@ -1,0 +1,17 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "ignorePaths": [
+    "design-docs/**",
+    "node_modules/**",
+    "package-lock.json",
+    ".git/**"
+  ],
+  "words": [
+    "doozer",
+    "golangci",
+    "markdownlint",
+    "techdef",
+    "cspell"
+  ]
+}
