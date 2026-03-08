@@ -1,0 +1,8 @@
+{
+  // Default: enable all rules
+  "default": true,
+  // Allow inline HTML (useful for badges in README)
+  "MD033": false,
+  // Allow long lines (common in markdown docs with links)
+  "MD013": false
+}

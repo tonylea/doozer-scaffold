@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+
+# Lint staged markdown files
+STAGED_MD=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$')
+if [ -n "$STAGED_MD" ]; then
+  echo "Running markdownlint-cli2 on staged markdown files..."
+  # shellcheck disable=SC2086
+  npx markdownlint-cli2 $STAGED_MD
+fi
+
+# Lint staged Go files
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+if [ -n "$STAGED_GO" ]; then
+  echo "Running golangci-lint on staged Go files..."
+  golangci-lint run
+fi
