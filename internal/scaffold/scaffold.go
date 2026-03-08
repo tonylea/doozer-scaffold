@@ -24,7 +24,7 @@ func Generate(cfg *config.Config, tech *techdef.TechDef, baseDir string) error {
 
 	// Create directory structure and files; on any error, clean up targetDir
 	if err := createScaffold(cfg, tech, targetDir); err != nil {
-		os.RemoveAll(targetDir)
+		_ = os.RemoveAll(targetDir)
 		return fmt.Errorf("scaffold generation failed: %w", err)
 	}
 
