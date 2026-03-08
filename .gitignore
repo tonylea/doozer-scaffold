@@ -1,0 +1,9 @@
+# Binaries
+bin/
+/doozer-scaffold
+
+# Go test cache
+*.test
+
+# OS
+.DS_Store
