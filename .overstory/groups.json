@@ -1,0 +1,148 @@
+[
+	{
+		"id": "group-c31c7659",
+		"name": "stage-1-implementation",
+		"memberIssueIds": [
+			"doozer-scaffold-2eb6",
+			"doozer-scaffold-1a6c",
+			"doozer-scaffold-1da5"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T15:55:57.673Z",
+		"completedAt": "2026-03-08T21:13:28.486Z"
+	},
+	{
+		"id": "group-ebc2036f",
+		"name": "stage-1-completion",
+		"memberIssueIds": [
+			"doozer-scaffold-144c"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:18:19.722Z",
+		"completedAt": "2026-03-08T21:24:05.507Z"
+	},
+	{
+		"id": "group-4989ab4b",
+		"name": "ci-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-2b28"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:31:20.527Z",
+		"completedAt": "2026-03-08T23:50:20.908Z"
+	},
+	{
+		"id": "group-7d5268cd",
+		"name": "ci-fix-v2",
+		"memberIssueIds": [
+			"doozer-scaffold-e748"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:36:02.397Z",
+		"completedAt": "2026-03-08T23:50:21.004Z"
+	},
+	{
+		"id": "group-2927439c",
+		"name": "ci-fix-v3",
+		"memberIssueIds": [
+			"doozer-scaffold-6eda"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:41:25.972Z",
+		"completedAt": "2026-03-08T23:50:21.096Z"
+	},
+	{
+		"id": "group-947c0338",
+		"name": "ci-errcheck",
+		"memberIssueIds": [
+			"doozer-scaffold-8d73"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:48:03.782Z",
+		"completedAt": "2026-03-08T23:50:21.185Z"
+	},
+	{
+		"id": "group-9b053b4e",
+		"name": "husky-setup",
+		"memberIssueIds": [
+			"doozer-scaffold-bfdb"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T21:52:35.422Z",
+		"completedAt": "2026-03-08T23:50:21.275Z"
+	},
+	{
+		"id": "group-f31daa60",
+		"name": "husky-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-18a9"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-08T22:02:33.802Z",
+		"completedAt": "2026-03-08T23:50:21.365Z"
+	},
+	{
+		"id": "group-ae647cec",
+		"name": "exclude-design-docs",
+		"memberIssueIds": [
+			"doozer-scaffold-ce9f",
+			"doozer-scaffold-4056",
+			"doozer-scaffold-2187"
+		],
+		"status": "active",
+		"createdAt": "2026-03-08T23:52:17.994Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-30773f4b",
+		"name": "stage-2-implementation",
+		"memberIssueIds": [
+			"doozer-scaffold-4a59",
+			"doozer-scaffold-e795"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T14:55:22.812Z",
+		"completedAt": "2026-03-09T15:35:13.212Z"
+	},
+	{
+		"id": "group-9037a49a",
+		"name": "stage-2-tdd",
+		"memberIssueIds": [
+			"doozer-scaffold-2187",
+			"doozer-scaffold-e795"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T15:17:26.078Z",
+		"completedAt": "2026-03-09T15:35:13.337Z"
+	},
+	{
+		"id": "group-874069a9",
+		"name": "stage-2-cleanup",
+		"memberIssueIds": [
+			"doozer-scaffold-6ed9"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T15:38:58.718Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-e9c91724",
+		"name": "git-cleanup",
+		"memberIssueIds": [
+			"doozer-scaffold-99c5"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T15:47:23.558Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-a13859b1",
+		"name": "cspell-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-c483"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T16:13:15.017Z",
+		"completedAt": null
+	}
+]
