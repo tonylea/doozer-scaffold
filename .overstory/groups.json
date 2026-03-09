@@ -89,9 +89,9 @@
 			"doozer-scaffold-4056",
 			"doozer-scaffold-2187"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-08T23:52:17.994Z",
-		"completedAt": null
+		"completedAt": "2026-03-09T16:40:29.252Z"
 	},
 	{
 		"id": "group-30773f4b",
@@ -121,9 +121,9 @@
 		"memberIssueIds": [
 			"doozer-scaffold-6ed9"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T15:38:58.718Z",
-		"completedAt": null
+		"completedAt": "2026-03-09T16:40:29.346Z"
 	},
 	{
 		"id": "group-e9c91724",
@@ -131,9 +131,9 @@
 		"memberIssueIds": [
 			"doozer-scaffold-99c5"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T15:47:23.558Z",
-		"completedAt": null
+		"completedAt": "2026-03-09T16:40:29.433Z"
 	},
 	{
 		"id": "group-a13859b1",
@@ -141,8 +141,20 @@
 		"memberIssueIds": [
 			"doozer-scaffold-c483"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T16:13:15.017Z",
+		"completedAt": "2026-03-09T16:40:29.519Z"
+	},
+	{
+		"id": "group-e936e7a9",
+		"name": "ci-pipeline-split",
+		"memberIssueIds": [
+			"doozer-scaffold-c448",
+			"doozer-scaffold-6efb",
+			"doozer-scaffold-f05d"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T16:50:03.163Z",
 		"completedAt": null
 	}
 ]
