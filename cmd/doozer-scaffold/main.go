@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/tonylea/doozer-scaffold/internal/config"
 	"github.com/tonylea/doozer-scaffold/internal/prompt"
@@ -36,14 +37,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Look up the selected technology definition
-	tech, ok := techDefs[cfg.Technology]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: unknown technology '%s'\n", cfg.Technology)
+	// Validate config
+	if err := cfg.Validate(techDefs); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := scaffold.Generate(cfg, tech, "."); err != nil {
+	// Resolve selected technology definitions, sorted by key
+	sort.Strings(cfg.Technologies)
+	techs := make([]*techdef.TechDef, 0, len(cfg.Technologies))
+	for _, key := range cfg.Technologies {
+		techs = append(techs, techDefs[key])
+	}
+
+	if err := scaffold.Generate(cfg, techs, "."); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating scaffold: %v\n", err)
 		os.Exit(1)
 	}

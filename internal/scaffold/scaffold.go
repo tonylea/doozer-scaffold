@@ -1,12 +1,18 @@
 package scaffold
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/tonylea/doozer-scaffold/internal/config"
 	"github.com/tonylea/doozer-scaffold/internal/techdef"
@@ -14,7 +20,8 @@ import (
 )
 
 // Generate creates the scaffold in a subdirectory of baseDir named after cfg.ProjectName.
-func Generate(cfg *config.Config, tech *techdef.TechDef, baseDir string) error {
+// techs is the ordered list of selected technology definitions (sorted by key).
+func Generate(cfg *config.Config, techs []*techdef.TechDef, baseDir string) error {
 	targetDir := filepath.Join(baseDir, cfg.ProjectName)
 
 	// Check target doesn't already exist
@@ -22,8 +29,19 @@ func Generate(cfg *config.Config, tech *techdef.TechDef, baseDir string) error {
 		return fmt.Errorf("directory '%s' already exists", cfg.ProjectName)
 	}
 
+	// Build template data
+	templateData := buildTemplateData(cfg)
+
+	// Detect conflicts before creating anything
+	if err := DetectPathConflicts(techs, templateData); err != nil {
+		return err
+	}
+	if err := DetectPromptKeyConflicts(techs); err != nil {
+		return err
+	}
+
 	// Create directory structure and files; on any error, clean up targetDir
-	if err := createScaffold(cfg, tech, targetDir); err != nil {
+	if err := createScaffold(cfg, techs, targetDir, templateData); err != nil {
 		_ = os.RemoveAll(targetDir)
 		return fmt.Errorf("scaffold generation failed: %w", err)
 	}
@@ -31,7 +49,73 @@ func Generate(cfg *config.Config, tech *techdef.TechDef, baseDir string) error {
 	return nil
 }
 
-func createScaffold(cfg *config.Config, tech *techdef.TechDef, targetDir string) error {
+func buildTemplateData(cfg *config.Config) map[string]string {
+	data := map[string]string{
+		"ProjectName": cfg.ProjectName,
+		"Year":        strconv.Itoa(time.Now().Year()),
+	}
+	for k, v := range cfg.TechPromptResponses {
+		data[k] = v
+	}
+	return data
+}
+
+// ResolveTemplate executes a Go template string with the given data map.
+func ResolveTemplate(tmplStr string, data map[string]string) (string, error) {
+	t, err := template.New("").Parse(tmplStr)
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// DetectPathConflicts checks for file path conflicts across all selected technologies.
+// Directory paths (ending with /) are allowed to overlap.
+func DetectPathConflicts(techs []*techdef.TechDef, templateData map[string]string) error {
+	seen := make(map[string]string) // resolved path → technology name
+	for _, tech := range techs {
+		for _, entry := range tech.Structure {
+			resolvedPath, err := ResolveTemplate(entry.Path, templateData)
+			if err != nil {
+				return fmt.Errorf("resolving path in '%s': %w", tech.Name, err)
+			}
+			if strings.HasSuffix(resolvedPath, "/") {
+				continue // Directory overlaps are fine
+			}
+			if existing, ok := seen[resolvedPath]; ok {
+				return fmt.Errorf(
+					"path conflict: '%s' is defined by both '%s' and '%s'",
+					resolvedPath, existing, tech.Name,
+				)
+			}
+			seen[resolvedPath] = tech.Name
+		}
+	}
+	return nil
+}
+
+// DetectPromptKeyConflicts checks for duplicate prompt keys across all selected technologies.
+func DetectPromptKeyConflicts(techs []*techdef.TechDef) error {
+	seen := make(map[string]string) // key → technology name
+	for _, tech := range techs {
+		for _, p := range tech.Prompts {
+			if existing, ok := seen[p.Key]; ok {
+				return fmt.Errorf(
+					"prompt key conflict: '%s' is defined by both '%s' and '%s'",
+					p.Key, existing, tech.Name,
+				)
+			}
+			seen[p.Key] = tech.Name
+		}
+	}
+	return nil
+}
+
+func createScaffold(cfg *config.Config, techs []*techdef.TechDef, targetDir string, templateData map[string]string) error {
 	// 1. Create target directory
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("creating target directory: %w", err)
@@ -47,22 +131,32 @@ func createScaffold(cfg *config.Config, tech *techdef.TechDef, targetDir string)
 		return err
 	}
 
-	gitignore := ComposeGitignore(tech)
+	if err := os.WriteFile(filepath.Join(targetDir, "Makefile"), []byte{}, 0o644); err != nil {
+		return fmt.Errorf("creating Makefile: %w", err)
+	}
+
+	gitignore := ComposeGitignore(techs)
 	if err := writeFile(filepath.Join(targetDir, ".gitignore"), []byte(gitignore), 0o644); err != nil {
 		return err
 	}
 
-	if err := renderTemplateToFile(targetDir, ".github/workflows/ci.yml", "github/ci.yml.tmpl", data, 0o644); err != nil {
+	ciContent, err := RenderCIConfig(techs)
+	if err != nil {
+		return fmt.Errorf("rendering CI config: %w", err)
+	}
+	if err := writeFile(filepath.Join(targetDir, ".github/workflows/ci.yml"), ciContent, 0o644); err != nil {
 		return err
 	}
 
-	// 3. Technology structure
-	if err := CreateStructure(targetDir, tech.Structure); err != nil {
-		return err
+	// 3. Technology structure (with template resolution)
+	for _, tech := range techs {
+		if err := createStructureWithTemplate(targetDir, tech.Structure, templateData); err != nil {
+			return err
+		}
 	}
 
 	// 4. Devcontainer
-	if err := generateDevcontainer(targetDir, cfg.ProjectName, tech, data); err != nil {
+	if err := generateDevcontainer(targetDir, cfg.ProjectName, techs, data); err != nil {
 		return err
 	}
 
@@ -119,45 +213,217 @@ func createScaffold(cfg *config.Config, tech *techdef.TechDef, targetDir string)
 
 // CreateStructure creates the directory/file structure defined in the technology's structure field.
 func CreateStructure(targetDir string, structure []techdef.StructureEntry) error {
-	for _, entry := range structure {
-		fullPath := filepath.Join(targetDir, entry.Path)
+	return createStructureWithTemplate(targetDir, structure, map[string]string{})
+}
 
-		if entry.IsDir() {
+func createStructureWithTemplate(targetDir string, structure []techdef.StructureEntry, templateData map[string]string) error {
+	for _, entry := range structure {
+		resolvedPath, err := ResolveTemplate(entry.Path, templateData)
+		if err != nil {
+			return fmt.Errorf("resolving path '%s': %w", entry.Path, err)
+		}
+		fullPath := filepath.Join(targetDir, resolvedPath)
+
+		if strings.HasSuffix(resolvedPath, "/") {
 			if err := os.MkdirAll(fullPath, 0o755); err != nil {
-				return fmt.Errorf("creating directory '%s': %w", entry.Path, err)
+				return fmt.Errorf("creating directory '%s': %w", resolvedPath, err)
 			}
 			gitkeepPath := filepath.Join(fullPath, ".gitkeep")
 			if err := os.WriteFile(gitkeepPath, []byte{}, 0o644); err != nil {
-				return fmt.Errorf("creating .gitkeep in '%s': %w", entry.Path, err)
+				return fmt.Errorf("creating .gitkeep in '%s': %w", resolvedPath, err)
 			}
 		} else {
 			parentDir := filepath.Dir(fullPath)
 			if err := os.MkdirAll(parentDir, 0o755); err != nil {
-				return fmt.Errorf("creating parent directory for '%s': %w", entry.Path, err)
+				return fmt.Errorf("creating parent directory for '%s': %w", resolvedPath, err)
 			}
 			content := []byte{}
 			if entry.Content != nil {
-				content = []byte(*entry.Content)
+				resolvedContent, err := ResolveTemplate(*entry.Content, templateData)
+				if err != nil {
+					return fmt.Errorf("resolving content for '%s': %w", resolvedPath, err)
+				}
+				content = []byte(resolvedContent)
 			}
 			if err := os.WriteFile(fullPath, content, 0o644); err != nil {
-				return fmt.Errorf("creating file '%s': %w", entry.Path, err)
+				return fmt.Errorf("creating file '%s': %w", resolvedPath, err)
 			}
 		}
 	}
 	return nil
 }
 
-// ComposeGitignore builds the .gitignore content by prepending a header comment to the technology's gitignore lines.
-func ComposeGitignore(tech *techdef.TechDef) string {
+// ComposeGitignore builds the composite .gitignore from all selected technologies.
+// Technologies are expected to be sorted by key (alphabetical).
+func ComposeGitignore(techs []*techdef.TechDef) string {
 	var sb strings.Builder
-	sb.WriteString("# ")
-	sb.WriteString(tech.Name)
-	sb.WriteString("\n")
-	sb.WriteString(tech.Gitignore)
+	for i, tech := range techs {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("# ")
+		sb.WriteString(tech.Name)
+		sb.WriteString("\n")
+		sb.WriteString(tech.Gitignore)
+	}
 	return sb.String()
 }
 
-func generateDevcontainer(targetDir, projectName string, tech *techdef.TechDef, data templates.TemplateData) error {
+// RenderCIConfig composes a three-stage CI pipeline from all selected technologies.
+func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
+	// Collect technologies that contribute CI
+	var ciTechs []*techdef.TechDef
+	for _, tech := range techs {
+		if tech.CI != nil {
+			ciTechs = append(ciTechs, tech)
+		}
+	}
+
+	if len(ciTechs) == 0 {
+		return renderPlaceholderCI()
+	}
+
+	// Build job name lists for needs dependencies
+	lintJobNames := make([]string, len(ciTechs))
+	for i, tech := range ciTechs {
+		lintJobNames[i] = "lint-" + tech.CI.JobName
+	}
+	testJobNames := make([]string, len(ciTechs))
+	for i, tech := range ciTechs {
+		testJobNames[i] = "test-" + tech.CI.JobName
+	}
+
+	var jobEntries []ciJobEntry
+
+	for _, tech := range ciTechs {
+		setupSteps := []interface{}{
+			map[string]interface{}{"uses": "actions/checkout@v4"},
+		}
+		for _, s := range tech.CI.SetupSteps {
+			step := map[string]interface{}{"name": s.Name}
+			if s.Uses != "" {
+				step["uses"] = s.Uses
+				if len(s.With) > 0 {
+					// Sort with keys for deterministic output
+					with := make(map[string]string)
+					for k, v := range s.With {
+						with[k] = v
+					}
+					step["with"] = with
+				}
+			}
+			if s.Run != "" {
+				step["run"] = s.Run
+			}
+			setupSteps = append(setupSteps, step)
+		}
+
+		// Lint job
+		lintSteps := make([]interface{}, len(setupSteps))
+		copy(lintSteps, setupSteps)
+		for _, s := range tech.CI.LintSteps {
+			lintSteps = append(lintSteps, map[string]interface{}{
+				"name": s.Name,
+				"run":  s.Run,
+			})
+		}
+		jobEntries = append(jobEntries, ciJobEntry{
+			key: "lint-" + tech.CI.JobName,
+			val: map[string]interface{}{
+				"runs-on": "ubuntu-latest",
+				"steps":   lintSteps,
+			},
+		})
+
+		// Test job
+		testSteps := make([]interface{}, len(setupSteps))
+		copy(testSteps, setupSteps)
+		for _, s := range tech.CI.TestSteps {
+			testSteps = append(testSteps, map[string]interface{}{
+				"name": s.Name,
+				"run":  s.Run,
+			})
+		}
+		jobEntries = append(jobEntries, ciJobEntry{
+			key: "test-" + tech.CI.JobName,
+			val: map[string]interface{}{
+				"runs-on": "ubuntu-latest",
+				"needs":   lintJobNames,
+				"steps":   testSteps,
+			},
+		})
+	}
+
+	// Build job
+	jobEntries = append(jobEntries, ciJobEntry{
+		key: "build",
+		val: map[string]interface{}{
+			"runs-on": "ubuntu-latest",
+			"needs":   testJobNames,
+			"steps": []interface{}{
+				map[string]interface{}{"uses": "actions/checkout@v4"},
+				map[string]interface{}{"name": "Build", "run": "echo 'TODO: Add build steps'"},
+			},
+		},
+	})
+
+	// Build the YAML manually for deterministic output
+	return renderCIYAML(jobEntries)
+}
+
+func renderPlaceholderCI() ([]byte, error) {
+	content := `name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: echo 'TODO: Add build steps'
+`
+	return []byte(content), nil
+}
+
+type ciJobEntry struct {
+	key string
+	val interface{}
+}
+
+// renderCIYAML produces GitHub Actions YAML from ordered job entries.
+func renderCIYAML(jobEntries []ciJobEntry) ([]byte, error) {
+	jobs := make(map[string]interface{})
+	for _, je := range jobEntries {
+		jobs[je.key] = je.val
+	}
+
+	workflow := map[string]interface{}{
+		"name": "CI",
+		"on": map[string]interface{}{
+			"push":         map[string]interface{}{"branches": []string{"main"}},
+			"pull_request": map[string]interface{}{"branches": []string{"main"}},
+		},
+		"jobs": jobs,
+	}
+
+	return yaml.Marshal(workflow)
+}
+
+type devcontainerJSON struct {
+	Name              string                 `json:"name"`
+	Build             map[string]string      `json:"build"`
+	Features          map[string]interface{} `json:"features"`
+	Customizations    map[string]interface{} `json:"customizations"`
+	PostCreateCommand string                 `json:"postCreateCommand"`
+}
+
+func generateDevcontainer(targetDir, projectName string, techs []*techdef.TechDef, data templates.TemplateData) error {
 	dcDir := filepath.Join(targetDir, ".devcontainer")
 	if err := os.MkdirAll(dcDir, 0o755); err != nil {
 		return fmt.Errorf("creating .devcontainer directory: %w", err)
@@ -168,23 +434,22 @@ func generateDevcontainer(targetDir, projectName string, tech *techdef.TechDef, 
 		return err
 	}
 
-	// devcontainer.json — rendered programmatically
-	dcJSON, err := renderDevcontainerJSON(projectName, tech)
+	// devcontainer.json
+	dcJSON, err := renderDevcontainerJSON(projectName, techs)
 	if err != nil {
 		return fmt.Errorf("rendering devcontainer.json: %w", err)
 	}
-	// Append trailing newline
 	dcJSON = append(dcJSON, '\n')
 	if err := writeFile(filepath.Join(dcDir, "devcontainer.json"), dcJSON, 0o644); err != nil {
 		return err
 	}
 
-	// setup.sh — base template + technology setup block
+	// setup.sh
 	baseContent, err := templates.Render("devcontainer/setup/base.sh.tmpl", data)
 	if err != nil {
 		return fmt.Errorf("rendering base.sh.tmpl: %w", err)
 	}
-	setupContent := renderSetupSh(baseContent, tech)
+	setupContent := renderSetupSh(baseContent, techs)
 	if err := writeFile(filepath.Join(dcDir, "setup.sh"), []byte(setupContent), 0o755); err != nil {
 		return err
 	}
@@ -192,21 +457,28 @@ func generateDevcontainer(targetDir, projectName string, tech *techdef.TechDef, 
 	return nil
 }
 
-type devcontainerJSON struct {
-	Name               string                 `json:"name"`
-	Build              map[string]string      `json:"build"`
-	Features           map[string]interface{} `json:"features"`
-	Customizations     map[string]interface{} `json:"customizations"`
-	PostCreateCommand  string                 `json:"postCreateCommand"`
-}
-
-func renderDevcontainerJSON(projectName string, tech *techdef.TechDef) ([]byte, error) {
+func renderDevcontainerJSON(projectName string, techs []*techdef.TechDef) ([]byte, error) {
 	features := map[string]interface{}{
 		"ghcr.io/devcontainers/features/node:1": map[string]interface{}{},
 	}
-	for k, v := range tech.Devcontainer.Features {
-		features[k] = v
+	for _, tech := range techs {
+		for k, v := range tech.Devcontainer.Features {
+			features[k] = v
+		}
 	}
+
+	// Merge and deduplicate extensions, then sort
+	extSet := make(map[string]bool)
+	for _, tech := range techs {
+		for _, ext := range tech.Devcontainer.Extensions {
+			extSet[ext] = true
+		}
+	}
+	extensions := make([]string, 0, len(extSet))
+	for ext := range extSet {
+		extensions = append(extensions, ext)
+	}
+	sort.Strings(extensions)
 
 	dc := devcontainerJSON{
 		Name:  projectName,
@@ -214,7 +486,7 @@ func renderDevcontainerJSON(projectName string, tech *techdef.TechDef) ([]byte, 
 		Features: features,
 		Customizations: map[string]interface{}{
 			"vscode": map[string]interface{}{
-				"extensions": tech.Devcontainer.Extensions,
+				"extensions": extensions,
 			},
 		},
 		PostCreateCommand: "bash .devcontainer/setup.sh",
@@ -223,14 +495,16 @@ func renderDevcontainerJSON(projectName string, tech *techdef.TechDef) ([]byte, 
 	return json.MarshalIndent(dc, "", "    ")
 }
 
-func renderSetupSh(baseTmpl string, tech *techdef.TechDef) string {
+func renderSetupSh(baseTmpl string, techs []*techdef.TechDef) string {
 	var sb strings.Builder
 	sb.WriteString(baseTmpl)
-	if strings.TrimSpace(tech.Devcontainer.Setup) != "" {
-		sb.WriteString("\n# === ")
-		sb.WriteString(tech.Name)
-		sb.WriteString(" ===\n")
-		sb.WriteString(tech.Devcontainer.Setup)
+	for _, tech := range techs {
+		if strings.TrimSpace(tech.Devcontainer.Setup) != "" {
+			sb.WriteString("\n# === ")
+			sb.WriteString(tech.Name)
+			sb.WriteString(" ===\n")
+			sb.WriteString(tech.Devcontainer.Setup)
+		}
 	}
 	return sb.String()
 }
@@ -253,3 +527,4 @@ func writeFile(path string, content []byte, perm os.FileMode) error {
 	}
 	return nil
 }
+

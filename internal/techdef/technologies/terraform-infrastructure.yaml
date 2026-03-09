@@ -1,0 +1,67 @@
+name: "Terraform (Infrastructure)"
+standalone: false
+
+structure:
+  - path: "infrastructure/"
+  - path: "infrastructure/main.tf"
+    content: |
+      # Main Terraform configuration
+  - path: "infrastructure/variables.tf"
+    content: |
+      # Input variables
+  - path: "infrastructure/outputs.tf"
+    content: |
+      # Output values
+  - path: "infrastructure/versions.tf"
+    content: |
+      terraform {
+        required_version = ">= 1.0"
+      }
+
+gitignore: |
+  # Terraform
+  .terraform/
+  .terraform.lock.hcl
+  *.tfstate
+  *.tfstate.*
+  *.tfplan
+  *.tfvars
+  !*.tfvars.example
+  crash.log
+  crash.*.log
+  override.tf
+  override.tf.json
+  *_override.tf
+  *_override.tf.json
+
+devcontainer:
+  features:
+    "ghcr.io/devcontainers-contrib/features/terraform-asdf:1": {}
+  extensions:
+    - "hashicorp.terraform"
+  setup: |
+    curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+    tflint --init || true
+
+ci:
+  job_name: "terraform"
+  setup_steps:
+    - name: "Install Terraform"
+      run: |
+        sudo apt-get update && sudo apt-get install -y unzip
+        curl -sL https://releases.hashicorp.com/terraform/1.9.0/terraform_1.9.0_linux_amd64.zip -o tf.zip
+        unzip tf.zip && sudo mv terraform /usr/local/bin/
+    - name: "Install TFLint"
+      run: |
+        curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+        tflint --init || true
+  lint_steps:
+    - name: "Format check"
+      run: "terraform -chdir=infrastructure fmt -check -recursive"
+    - name: "Lint"
+      run: "tflint --chdir=infrastructure"
+  test_steps:
+    - name: "Validate"
+      run: |
+        terraform -chdir=infrastructure init -backend=false
+        terraform -chdir=infrastructure validate
