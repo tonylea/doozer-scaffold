@@ -1,0 +1,1 @@
+{"classification":"tactical","recorded_at":"2026-03-09T16:33:13.763Z","tags":["merge-conflict"],"evidence":{"bead":"doozer-scaffold-b4bf"},"type":"pattern","name":"","description":"Merge conflict resolved at tier auto-resolve. Branch: overstory/builder-fix-precommit/doozer-scaffold-b4bf. Agent: builder-fix-precommit. Conflicting files: .overstory/groups.json.","id":"mx-ecd3cf"}
