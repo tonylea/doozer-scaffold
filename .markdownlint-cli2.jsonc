@@ -1,0 +1,9 @@
+{
+  "ignores": [
+    "node_modules/**",
+    "design-docs/**",
+    "AGENTS.md",
+    ".claude/**",
+    ".overstory/**"
+  ]
+}
