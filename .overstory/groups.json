@@ -177,5 +177,15 @@
 		"status": "active",
 		"createdAt": "2026-03-09T17:17:09.561Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-0b711a43",
+		"name": "npm-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-9db4"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T17:31:19.220Z",
+		"completedAt": null
 	}
 ]
