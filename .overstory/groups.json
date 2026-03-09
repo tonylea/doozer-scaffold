@@ -167,5 +167,15 @@
 		"status": "active",
 		"createdAt": "2026-03-09T17:05:17.003Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-81e611f3",
+		"name": "mdlint-config",
+		"memberIssueIds": [
+			"doozer-scaffold-65a3"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T17:17:09.561Z",
+		"completedAt": null
 	}
 ]
