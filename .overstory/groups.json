@@ -156,5 +156,16 @@
 		"status": "active",
 		"createdAt": "2026-03-09T16:50:03.163Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-1c334d98",
+		"name": "lint-and-precommit",
+		"memberIssueIds": [
+			"doozer-scaffold-1cca",
+			"doozer-scaffold-ec98"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T17:05:17.003Z",
+		"completedAt": null
 	}
 ]
