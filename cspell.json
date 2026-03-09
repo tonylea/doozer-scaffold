@@ -19,13 +19,31 @@
     ".editorconfig",
     "**.yml",
     "**.yaml",
-    "go.sum"
+    "go.sum",
+    "go.mod"
   ],
   "words": [
     "doozer",
     "golangci",
     "markdownlint",
     "techdef",
-    "cspell"
+    "cspell",
+    "tmpl",
+    "licence",
+    "stretchr",
+    "tonylea",
+    "commitlint",
+    "behaviour",
+    "pyproject",
+    "pytest",
+    "Behaviour",
+    "Licence",
+    "licences",
+    "Sanitise",
+    "tfstate",
+    "CIYAML",
+    "overstory",
+    "myapp",
+    "charmbracelet"
   ]
 }
