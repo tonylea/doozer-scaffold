@@ -1,19 +1,19 @@
 #!/usr/bin/env sh
 
-# Lint staged markdown files (excluding design-docs/)
-STAGED_MD=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$' | grep -v '^design-docs/' || true)
+# Lint staged markdown files (excluding design-docs/ and AGENTS.md)
+STAGED_MD=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$' | grep -v '^design-docs/' | grep -v '^AGENTS\.md$' || true)
 if [ -n "$STAGED_MD" ]; then
   echo "Running markdownlint-cli2 on staged markdown files..."
   # shellcheck disable=SC2086
   npx markdownlint-cli2 $STAGED_MD
 fi
 
-# Spell-check staged files (excluding design-docs/)
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v '^design-docs/' || true)
-if [ -n "$STAGED_FILES" ]; then
+# Spell-check staged Go, Markdown, and template files (excluding design-docs/ and AGENTS.md)
+STAGED_SPELL=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(go|md|tmpl)$' | grep -v '^design-docs/' | grep -v '^AGENTS\.md$' || true)
+if [ -n "$STAGED_SPELL" ]; then
   echo "Running cspell on staged files..."
   # shellcheck disable=SC2086
-  npx cspell --no-progress $STAGED_FILES
+  npx cspell --no-progress $STAGED_SPELL
 fi
 
 # Lint staged Go files

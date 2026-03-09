@@ -4,8 +4,22 @@
   "ignorePaths": [
     "design-docs/**",
     "node_modules/**",
+    "package.json",
     "package-lock.json",
-    ".git/**"
+    ".git/**",
+    "AGENTS.md",
+    ".seeds/**",
+    ".mulch/**",
+    ".overstory/**",
+    ".husky/**",
+    ".claude/**",
+    ".github/**",
+    "Makefile",
+    ".gitignore",
+    ".editorconfig",
+    "**.yml",
+    "**.yaml",
+    "go.sum"
   ],
   "words": [
     "doozer",
