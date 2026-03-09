@@ -1,0 +1,99 @@
+name: "Python"
+standalone: false
+
+prompts:
+  - key: "package_name"
+    title: "Python package name:"
+    type: "text"
+    default_from: "project_name"
+
+structure:
+  - path: "src/{{.package_name}}/"
+  - path: "src/{{.package_name}}/__init__.py"
+    content: |
+      """{{.package_name}} package."""
+  - path: "tests/"
+  - path: "tests/__init__.py"
+    content: ""
+  - path: "pyproject.toml"
+    content: |
+      [project]
+      name = "{{.package_name}}"
+      version = "0.1.0"
+      description = ""
+      requires-python = ">=3.12"
+      dependencies = []
+
+      [project.optional-dependencies]
+      dev = [
+          "pytest>=8.0",
+          "ruff>=0.4",
+      ]
+
+      [tool.ruff]
+      line-length = 120
+      target-version = "py312"
+
+      [tool.ruff.lint]
+      select = ["E", "F", "I", "N", "W", "UP"]
+
+      [tool.pytest.ini_options]
+      testpaths = ["tests"]
+
+      [build-system]
+      requires = ["hatchling"]
+      build-backend = "hatchling.backends"
+
+gitignore: |
+  # Python
+  __pycache__/
+  *.py[cod]
+  *$py.class
+  *.so
+  .Python
+  build/
+  dist/
+  *.egg-info/
+  *.egg
+  .eggs/
+  # Virtual environments
+  .venv/
+  venv/
+  ENV/
+  # Testing
+  .pytest_cache/
+  .coverage
+  htmlcov/
+  # Ruff
+  .ruff_cache/
+  # Distribution
+  *.whl
+
+devcontainer:
+  features:
+    "ghcr.io/devcontainers/features/python:1": {}
+  extensions:
+    - "charliermarsh.ruff"
+    - "ms-python.python"
+  setup: |
+    pip install --break-system-packages uv
+    if [ -f pyproject.toml ]; then uv pip install --system -e ".[dev]"; fi
+
+ci:
+  job_name: "python"
+  setup_steps:
+    - name: "Set up Python"
+      uses: "actions/setup-python@v5"
+      with:
+        python-version: "3.12"
+  lint_steps:
+    - name: "Lint"
+      run: |
+        pip install ruff
+        ruff check .
+  test_steps:
+    - name: "Test"
+      run: |
+        pip install pytest
+        pip install -e ".[dev]" || true
+        pytest

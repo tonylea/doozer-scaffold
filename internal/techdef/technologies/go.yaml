@@ -1,0 +1,50 @@
+name: "Go"
+standalone: false
+
+structure:
+  - path: "cmd/app/"
+  - path: "internal/"
+
+gitignore: |
+  # Binaries
+  *.exe
+  *.exe~
+  *.dll
+  *.so
+  *.dylib
+  # Test binary
+  *.test
+  # Output
+  *.out
+  # Go workspace
+  go.work
+  go.work.sum
+  # Dependency directory
+  vendor/
+  # Build output
+  bin/
+  dist/
+
+devcontainer:
+  features:
+    "ghcr.io/devcontainers/features/go:1": {}
+  extensions:
+    - "golang.go"
+  setup: |
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+ci:
+  job_name: "go"
+  setup_steps:
+    - name: "Set up Go"
+      uses: "actions/setup-go@v5"
+      with:
+        go-version: "stable"
+  lint_steps:
+    - name: "Lint"
+      run: |
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        golangci-lint run
+  test_steps:
+    - name: "Test"
+      run: "go test ./... -v"
