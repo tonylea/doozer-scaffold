@@ -1,6 +1,7 @@
 package techdef_test
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -189,6 +190,57 @@ func TestCIValidation_EmptyTestSteps(t *testing.T) {
 	err := def.Validate("test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "test_steps")
+}
+
+func TestLoadAllTechDefs(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	expectedKeys := []string{"go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	actualKeys := make([]string, 0, len(defs))
+	for key := range defs {
+		actualKeys = append(actualKeys, key)
+	}
+	sort.Strings(actualKeys)
+	assert.Equal(t, expectedKeys, actualKeys)
+}
+
+func TestTechDefStandaloneField(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	assert.True(t, defs["powershell"].Standalone)
+	assert.True(t, defs["terraform-module"].Standalone)
+	assert.False(t, defs["go"].Standalone)
+	assert.False(t, defs["terraform-infrastructure"].Standalone)
+	assert.False(t, defs["python"].Standalone)
+}
+
+func TestPythonHasPackageNamePrompt(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	pyDef := defs["python"]
+	require.Len(t, pyDef.Prompts, 1)
+
+	p := pyDef.Prompts[0]
+	assert.Equal(t, "package_name", p.Key)
+	assert.Equal(t, "text", p.Type)
+	assert.Equal(t, "project_name", p.DefaultFrom)
+}
+
+func TestGoHasNoPrompts(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	assert.Empty(t, defs["go"].Prompts)
+}
+
+func TestAllNewDefsPassValidation(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	for key, def := range defs {
+		assert.NoError(t, def.Validate(key), "validation failed for %s", key)
+	}
 }
 
 func TestCIValidation_SetupStepMustHaveUsesOrRun(t *testing.T) {
