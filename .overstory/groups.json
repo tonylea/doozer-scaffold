@@ -151,7 +151,8 @@
 		"memberIssueIds": [
 			"doozer-scaffold-c448",
 			"doozer-scaffold-6efb",
-			"doozer-scaffold-f05d"
+			"doozer-scaffold-f05d",
+			"doozer-scaffold-d538"
 		],
 		"status": "active",
 		"createdAt": "2026-03-09T16:50:03.163Z",
@@ -164,9 +165,9 @@
 			"doozer-scaffold-1cca",
 			"doozer-scaffold-ec98"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T17:05:17.003Z",
-		"completedAt": null
+		"completedAt": "2026-03-10T12:26:29.321Z"
 	},
 	{
 		"id": "group-81e611f3",
@@ -174,9 +175,9 @@
 		"memberIssueIds": [
 			"doozer-scaffold-65a3"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T17:17:09.561Z",
-		"completedAt": null
+		"completedAt": "2026-03-10T12:26:29.410Z"
 	},
 	{
 		"id": "group-0b711a43",
@@ -184,8 +185,28 @@
 		"memberIssueIds": [
 			"doozer-scaffold-9db4"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T17:31:19.220Z",
+		"completedAt": "2026-03-10T12:26:29.497Z"
+	},
+	{
+		"id": "group-ea5c0e4c",
+		"name": "stage-3a-dockerfile",
+		"memberIssueIds": [
+			"doozer-scaffold-34d4"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T12:32:12.363Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-b03e050d",
+		"name": "stage-3a-redo",
+		"memberIssueIds": [
+			"doozer-scaffold-d538"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T12:39:48.788Z",
 		"completedAt": null
 	}
 ]
