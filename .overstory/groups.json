@@ -208,5 +208,15 @@
 		"status": "active",
 		"createdAt": "2026-03-10T12:39:48.788Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-62c95e0e",
+		"name": "stage-3a-v3",
+		"memberIssueIds": [
+			"doozer-scaffold-8449"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T13:02:56.191Z",
+		"completedAt": null
 	}
 ]
