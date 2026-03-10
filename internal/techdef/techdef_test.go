@@ -196,7 +196,7 @@ func TestLoadAllTechDefs(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
-	expectedKeys := []string{"go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	expectedKeys := []string{"dockerfile-image", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
 	actualKeys := make([]string, 0, len(defs))
 	for key := range defs {
 		actualKeys = append(actualKeys, key)
@@ -258,4 +258,41 @@ func TestCIValidation_SetupStepMustHaveUsesOrRun(t *testing.T) {
 	err := def.Validate("test")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "uses")
+}
+
+// --- Stage 3a: Dockerfile definitions ---
+
+func TestDockerfileImageDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "dockerfile-image")
+
+	def := defs["dockerfile-image"]
+	assert.Equal(t, "Dockerfile (Image)", def.Name)
+	assert.True(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "docker", def.CI.JobName)
+	assert.Empty(t, def.Prompts)
+}
+
+func TestDockerfileImageIsStandalone(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	assert.True(t, defs["dockerfile-image"].Standalone)
+}
+
+func TestDockerfileImageStructureHasDockerfile(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	def := defs["dockerfile-image"]
+	paths := make([]string, len(def.Structure))
+	for i, entry := range def.Structure {
+		paths[i] = entry.Path
+	}
+	assert.Contains(t, paths, "Dockerfile")
+	assert.Contains(t, paths, ".dockerignore")
+	assert.Contains(t, paths, "scripts/")
 }
