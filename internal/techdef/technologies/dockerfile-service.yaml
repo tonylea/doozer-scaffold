@@ -1,0 +1,56 @@
+name: "Dockerfile (Service)"
+standalone: false
+
+structure:
+  - path: "docker/"
+  - path: "docker/Dockerfile"
+    content: |
+      FROM ubuntu:24.04
+
+      LABEL maintainer="{{.ProjectName}}"
+
+      RUN apt-get update && apt-get install -y --no-install-recommends \
+          ca-certificates \
+          && rm -rf /var/lib/apt/lists/*
+
+      WORKDIR /app
+
+      COPY . .
+
+      CMD ["/bin/bash"]
+  - path: ".dockerignore"
+    content: |
+      .git
+      .github
+      .devcontainer
+      .editorconfig
+      .gitattributes
+      .gitignore
+      *.md
+      LICENSE
+      Makefile
+
+gitignore: |
+  # Docker
+  .docker/
+
+devcontainer:
+  features:
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  extensions:
+    - "ms-azuretools.vscode-docker"
+  setup: ""
+
+ci:
+  job_name: "docker"
+  setup_steps:
+    - name: "Install Hadolint"
+      run: |
+        sudo wget -O /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+        sudo chmod +x /usr/local/bin/hadolint
+  lint_steps:
+    - name: "Lint Dockerfile"
+      run: "hadolint docker/Dockerfile"
+  test_steps:
+    - name: "Build image"
+      run: "docker build -t test-image -f docker/Dockerfile ."
