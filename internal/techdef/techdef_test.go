@@ -7,8 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tonylea/doozer-scaffold/internal/config"
-	"github.com/tonylea/doozer-scaffold/internal/scaffold"
 	"github.com/tonylea/doozer-scaffold/internal/techdef"
 )
 
@@ -198,7 +196,7 @@ func TestLoadAllTechDefs(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
-	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	expectedKeys := []string{"go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
 	actualKeys := make([]string, 0, len(defs))
 	for key := range defs {
 		actualKeys = append(actualKeys, key)
@@ -243,175 +241,6 @@ func TestAllNewDefsPassValidation(t *testing.T) {
 	for key, def := range defs {
 		assert.NoError(t, def.Validate(key), "validation failed for %s", key)
 	}
-}
-
-// --- Stage 3a: Dockerfile definition tests ---
-
-func TestDockerfileImageDefinitionLoads(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-	require.Contains(t, defs, "dockerfile-image")
-
-	def := defs["dockerfile-image"]
-	assert.Equal(t, "Dockerfile (Image)", def.Name)
-	assert.True(t, def.Standalone)
-	assert.NotEmpty(t, def.Structure)
-	assert.NotEmpty(t, def.Gitignore)
-	assert.NotNil(t, def.CI)
-	assert.Equal(t, "docker", def.CI.JobName)
-	assert.Empty(t, def.Prompts)
-}
-
-func TestDockerfileImageIsStandalone(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-	assert.True(t, defs["dockerfile-image"].Standalone)
-}
-
-func TestDockerfileImageStructureHasDockerfile(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-
-	def := defs["dockerfile-image"]
-	paths := make([]string, len(def.Structure))
-	for i, entry := range def.Structure {
-		paths[i] = entry.Path
-	}
-	assert.Contains(t, paths, "Dockerfile")
-	assert.Contains(t, paths, ".dockerignore")
-	assert.Contains(t, paths, "scripts/")
-}
-
-func TestDockerfileServiceDefinitionLoads(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-	require.Contains(t, defs, "dockerfile-service")
-
-	def := defs["dockerfile-service"]
-	assert.Equal(t, "Dockerfile (Service)", def.Name)
-	assert.False(t, def.Standalone)
-	assert.NotEmpty(t, def.Structure)
-	assert.NotEmpty(t, def.Gitignore)
-	assert.NotNil(t, def.CI)
-	assert.Equal(t, "docker", def.CI.JobName)
-	assert.Empty(t, def.Prompts)
-}
-
-func TestDockerfileServiceIsComposable(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-	assert.False(t, defs["dockerfile-service"].Standalone)
-}
-
-func TestDockerfileServiceStructureHasCorrectPaths(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-
-	def := defs["dockerfile-service"]
-	paths := make([]string, len(def.Structure))
-	for i, entry := range def.Structure {
-		paths[i] = entry.Path
-	}
-	assert.Contains(t, paths, "docker/")
-	assert.Contains(t, paths, "docker/Dockerfile")
-	assert.Contains(t, paths, ".dockerignore")
-}
-
-func TestDockerfileImageCannotCombineWithOtherTechs(t *testing.T) {
-	defs, _ := techdef.Load()
-	cfg := &config.Config{
-		ProjectName:  "test",
-		Provider:     "github",
-		Technologies: []string{"dockerfile-image", "go"},
-		Licence:      "none",
-	}
-	err := cfg.Validate(defs)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "standalone")
-}
-
-func TestDockerfileServiceCanCombineWithGo(t *testing.T) {
-	defs, _ := techdef.Load()
-	cfg := &config.Config{
-		ProjectName:  "test",
-		Provider:     "github",
-		Technologies: []string{"dockerfile-service", "go"},
-		Licence:      "none",
-	}
-	err := cfg.Validate(defs)
-	assert.NoError(t, err)
-}
-
-func TestDockerfileServiceCanCombineWithMultipleTechs(t *testing.T) {
-	defs, _ := techdef.Load()
-	cfg := &config.Config{
-		ProjectName:         "test",
-		Provider:            "github",
-		Technologies:        []string{"dockerfile-service", "go", "python", "terraform-infrastructure"},
-		TechPromptResponses: map[string]string{"package_name": "test_app"},
-		Licence:             "none",
-	}
-	err := cfg.Validate(defs)
-	assert.NoError(t, err)
-}
-
-func TestDockerfileDefinitionsHaveDockerInDockerFeature(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-
-	for _, key := range []string{"dockerfile-image", "dockerfile-service"} {
-		def := defs[key]
-		_, ok := def.Devcontainer.Features["ghcr.io/devcontainers/features/docker-in-docker:2"]
-		assert.True(t, ok, "%s should have docker-in-docker feature", key)
-	}
-}
-
-func TestDockerfileDefinitionsHaveDockerExtension(t *testing.T) {
-	defs, err := techdef.Load()
-	require.NoError(t, err)
-
-	for _, key := range []string{"dockerfile-image", "dockerfile-service"} {
-		def := defs[key]
-		assert.Contains(t, def.Devcontainer.Extensions, "ms-azuretools.vscode-docker",
-			"%s should have Docker VS Code extension", key)
-	}
-}
-
-func TestDockerfileServiceNoPathConflictWithGo(t *testing.T) {
-	defs, _ := techdef.Load()
-	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["go"]}
-	data := map[string]string{"ProjectName": "test"}
-	err := scaffold.DetectPathConflicts(techs, data)
-	assert.NoError(t, err)
-}
-
-func TestDockerfileServiceNoPathConflictWithPython(t *testing.T) {
-	defs, _ := techdef.Load()
-	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["python"]}
-	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
-	err := scaffold.DetectPathConflicts(techs, data)
-	assert.NoError(t, err)
-}
-
-func TestDockerfileServiceNoPathConflictWithTerraformInfra(t *testing.T) {
-	defs, _ := techdef.Load()
-	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["terraform-infrastructure"]}
-	data := map[string]string{"ProjectName": "test"}
-	err := scaffold.DetectPathConflicts(techs, data)
-	assert.NoError(t, err)
-}
-
-func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
-	defs, _ := techdef.Load()
-	techs := []*techdef.TechDef{
-		defs["dockerfile-service"],
-		defs["go"],
-		defs["python"],
-		defs["terraform-infrastructure"],
-	}
-	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
-	err := scaffold.DetectPathConflicts(techs, data)
-	assert.NoError(t, err)
 }
 
 func TestCIValidation_SetupStepMustHaveUsesOrRun(t *testing.T) {
