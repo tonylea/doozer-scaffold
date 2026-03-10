@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tonylea/doozer-scaffold/internal/config"
+	"github.com/tonylea/doozer-scaffold/internal/scaffold"
 	"github.com/tonylea/doozer-scaffold/internal/techdef"
 )
 
@@ -352,4 +354,79 @@ func TestDockerfileDefinitionsHaveDockerExtension(t *testing.T) {
 		assert.Contains(t, def.Devcontainer.Extensions, "ms-azuretools.vscode-docker",
 			"%s should have Docker VS Code extension", key)
 	}
+}
+
+func TestDockerfileImageCannotCombineWithOtherTechs(t *testing.T) {
+	defs, _ := techdef.Load()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Licence:      "none",
+		Technologies: []string{"dockerfile-image", "go"},
+	}
+	err := cfg.Validate(defs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "standalone")
+}
+
+func TestDockerfileServiceCanCombineWithGo(t *testing.T) {
+	defs, _ := techdef.Load()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Licence:      "none",
+		Technologies: []string{"dockerfile-service", "go"},
+	}
+	err := cfg.Validate(defs)
+	assert.NoError(t, err)
+}
+
+func TestDockerfileServiceCanCombineWithMultipleTechs(t *testing.T) {
+	defs, _ := techdef.Load()
+	cfg := &config.Config{
+		ProjectName:         "test",
+		Provider:            "github",
+		Licence:             "none",
+		Technologies:        []string{"dockerfile-service", "go", "python", "terraform-infrastructure"},
+		TechPromptResponses: map[string]string{"package_name": "test_app"},
+	}
+	err := cfg.Validate(defs)
+	assert.NoError(t, err)
+}
+
+func TestDockerfileServiceNoPathConflictWithGo(t *testing.T) {
+	defs, _ := techdef.Load()
+	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["go"]}
+	data := map[string]string{"ProjectName": "test"}
+	err := scaffold.DetectPathConflicts(techs, data)
+	assert.NoError(t, err)
+}
+
+func TestDockerfileServiceNoPathConflictWithPython(t *testing.T) {
+	defs, _ := techdef.Load()
+	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["python"]}
+	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
+	err := scaffold.DetectPathConflicts(techs, data)
+	assert.NoError(t, err)
+}
+
+func TestDockerfileServiceNoPathConflictWithTerraformInfra(t *testing.T) {
+	defs, _ := techdef.Load()
+	techs := []*techdef.TechDef{defs["dockerfile-service"], defs["terraform-infrastructure"]}
+	data := map[string]string{"ProjectName": "test"}
+	err := scaffold.DetectPathConflicts(techs, data)
+	assert.NoError(t, err)
+}
+
+func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
+	defs, _ := techdef.Load()
+	techs := []*techdef.TechDef{
+		defs["dockerfile-service"],
+		defs["go"],
+		defs["python"],
+		defs["terraform-infrastructure"],
+	}
+	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
+	err := scaffold.DetectPathConflicts(techs, data)
+	assert.NoError(t, err)
 }
