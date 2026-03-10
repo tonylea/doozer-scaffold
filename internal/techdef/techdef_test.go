@@ -196,7 +196,7 @@ func TestLoadAllTechDefs(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
-	expectedKeys := []string{"dockerfile-image", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
 	actualKeys := make([]string, 0, len(defs))
 	for key := range defs {
 		actualKeys = append(actualKeys, key)
@@ -295,4 +295,61 @@ func TestDockerfileImageStructureHasDockerfile(t *testing.T) {
 	assert.Contains(t, paths, "Dockerfile")
 	assert.Contains(t, paths, ".dockerignore")
 	assert.Contains(t, paths, "scripts/")
+}
+
+func TestDockerfileServiceDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "dockerfile-service")
+
+	def := defs["dockerfile-service"]
+	assert.Equal(t, "Dockerfile (Service)", def.Name)
+	assert.False(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "docker", def.CI.JobName)
+	assert.Empty(t, def.Prompts)
+}
+
+func TestDockerfileServiceIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	assert.False(t, defs["dockerfile-service"].Standalone)
+}
+
+func TestDockerfileServiceStructureHasCorrectPaths(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	def := defs["dockerfile-service"]
+	paths := make([]string, len(def.Structure))
+	for i, entry := range def.Structure {
+		paths[i] = entry.Path
+	}
+	assert.Contains(t, paths, "docker/")
+	assert.Contains(t, paths, "docker/Dockerfile")
+	assert.Contains(t, paths, ".dockerignore")
+}
+
+func TestDockerfileDefinitionsHaveDockerInDockerFeature(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	for _, key := range []string{"dockerfile-image", "dockerfile-service"} {
+		def := defs[key]
+		_, ok := def.Devcontainer.Features["ghcr.io/devcontainers/features/docker-in-docker:2"]
+		assert.True(t, ok, "%s should have docker-in-docker feature", key)
+	}
+}
+
+func TestDockerfileDefinitionsHaveDockerExtension(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	for _, key := range []string{"dockerfile-image", "dockerfile-service"} {
+		def := defs[key]
+		assert.Contains(t, def.Devcontainer.Extensions, "ms-azuretools.vscode-docker",
+			"%s should have Docker VS Code extension", key)
+	}
 }
