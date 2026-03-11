@@ -198,7 +198,7 @@ func TestLoadAllTechDefs(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
-	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "helm-chart", "helm-deployment", "powershell", "python", "terraform-infrastructure", "terraform-module"}
 	actualKeys := make([]string, 0, len(defs))
 	for key := range defs {
 		actualKeys = append(actualKeys, key)
@@ -445,6 +445,24 @@ func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
 	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
 	err := scaffold.DetectPathConflicts(techs, data)
 	assert.NoError(t, err)
+}
+
+// --- Stage 3b: Helm definitions ---
+
+func TestHelmChartDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "helm-chart")
+
+	def := defs["helm-chart"]
+	assert.Equal(t, "Helm Chart", def.Name)
+	assert.Equal(t, "Helm", def.VariantGroup)
+	assert.True(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "helm", def.CI.JobName)
+	assert.Empty(t, def.Prompts)
 }
 
 // --- Stage 3b: Terraform + Dockerfile variant group migration ---
