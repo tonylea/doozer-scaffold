@@ -154,9 +154,9 @@
 			"doozer-scaffold-f05d",
 			"doozer-scaffold-d538"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T16:50:03.163Z",
-		"completedAt": null
+		"completedAt": "2026-03-11T22:02:55.028Z"
 	},
 	{
 		"id": "group-1c334d98",
@@ -195,9 +195,9 @@
 		"memberIssueIds": [
 			"doozer-scaffold-34d4"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-10T12:32:12.363Z",
-		"completedAt": null
+		"completedAt": "2026-03-11T22:02:55.120Z"
 	},
 	{
 		"id": "group-b03e050d",
@@ -205,9 +205,9 @@
 		"memberIssueIds": [
 			"doozer-scaffold-d538"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-10T12:39:48.788Z",
-		"completedAt": null
+		"completedAt": "2026-03-11T22:02:55.208Z"
 	},
 	{
 		"id": "group-62c95e0e",
@@ -215,8 +215,20 @@
 		"memberIssueIds": [
 			"doozer-scaffold-8449"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-10T13:02:56.191Z",
+		"completedAt": "2026-03-11T22:02:55.299Z"
+	},
+	{
+		"id": "group-5805d62c",
+		"name": "stage-3b-helm",
+		"memberIssueIds": [
+			"doozer-scaffold-95cf",
+			"doozer-scaffold-0fed",
+			"doozer-scaffold-0d34"
+		],
+		"status": "active",
+		"createdAt": "2026-03-11T22:04:24.073Z",
 		"completedAt": null
 	}
 ]
