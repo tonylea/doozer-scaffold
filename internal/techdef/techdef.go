@@ -139,6 +139,33 @@ func BuildVariantGroups(defs map[string]*TechDef) map[string]*VariantGroupPair {
 	return groups
 }
 
+// ResolveVariantGroups resolves a slice of selected keys (which may include variant group
+// names or regular definition keys) to actual TechDef pointers based on selection context.
+// Returns the resolved TechDef slice and a map from variant group name to resolved mode
+// ("standalone" or "composable").
+func ResolveVariantGroups(selectedKeys []string, defs map[string]*TechDef) ([]*TechDef, map[string]string) {
+	variantGroups := BuildVariantGroups(defs)
+	composable := len(selectedKeys) > 1
+
+	resolved := make([]*TechDef, 0, len(selectedKeys))
+	modeMap := make(map[string]string)
+
+	for _, key := range selectedKeys {
+		if pair, ok := variantGroups[key]; ok {
+			if composable {
+				resolved = append(resolved, pair.Composable)
+				modeMap[key] = "composable"
+			} else {
+				resolved = append(resolved, pair.Standalone)
+				modeMap[key] = "standalone"
+			}
+		} else if def, ok := defs[key]; ok {
+			resolved = append(resolved, def)
+		}
+	}
+	return resolved, modeMap
+}
+
 // ValidateVariantGroups checks that each variant_group name has exactly one
 // standalone: true and one standalone: false definition.
 func ValidateVariantGroups(defs map[string]*TechDef) error {

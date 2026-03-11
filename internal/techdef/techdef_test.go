@@ -538,6 +538,62 @@ func TestBuildVariantGroups(t *testing.T) {
 	assert.Equal(t, composabledef, pair.Composable)
 }
 
+func TestResolveVariantGroups_SoleSelection_GivesStandalone(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa": standalonedef,
+		"grp-c":  composabledef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"MyGroup"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, standalonedef, resolved[0])
+	assert.Equal(t, "standalone", modeMap["MyGroup"])
+}
+
+func TestResolveVariantGroups_MultiSelection_GivesComposable(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa":  standalonedef,
+		"grp-c":   composabledef,
+		"regular": regulardef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"MyGroup", "regular"}, defs)
+	require.Len(t, resolved, 2)
+	assert.Equal(t, composabledef, resolved[0])
+	assert.Equal(t, regulardef, resolved[1])
+	assert.Equal(t, "composable", modeMap["MyGroup"])
+}
+
+func TestResolveVariantGroups_RegularKeysPassThrough(t *testing.T) {
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"regular": regulardef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"regular"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, regulardef, resolved[0])
+	assert.Empty(t, modeMap)
+}
+
 func TestPromptValidation_InvalidMode(t *testing.T) {
 	def := &techdef.TechDef{
 		Name:      "Test",
