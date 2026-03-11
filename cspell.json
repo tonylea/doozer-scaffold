@@ -44,6 +44,12 @@
     "CIYAML",
     "overstory",
     "myapp",
-    "charmbracelet"
+    "charmbracelet",
+    "standalonedef",
+    "composabledef",
+    "regulardef",
+    "badmode",
+    "helmignore",
+    "serviceaccount"
   ]
 }
