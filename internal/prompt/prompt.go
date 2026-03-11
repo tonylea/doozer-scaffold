@@ -39,9 +39,10 @@ func SanitiseForIdentifier(projectName string) string {
 func FilterPromptsByMode(prompts []techdef.PromptDef, resolvedMode string) []techdef.PromptDef {
 	var result []techdef.PromptDef
 	for _, p := range prompts {
-		if p.Mode == "" {
+		switch p.Mode {
+		case "":
 			result = append(result, p)
-		} else if p.Mode == resolvedMode {
+		case resolvedMode:
 			result = append(result, p)
 		}
 	}
