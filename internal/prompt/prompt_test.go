@@ -88,6 +88,41 @@ func TestBuildTechOptionList_SortedAlphabetically(t *testing.T) {
 	assert.Equal(t, "PowerShell Module", options[2].Name)
 }
 
+func TestFilterPromptsByMode_NoMode_AlwaysShown(t *testing.T) {
+	prompts := []techdef.PromptDef{
+		{Key: "name", Title: "Name:", Type: "text"},
+	}
+	result := prompt.FilterPromptsByMode(prompts, "composable")
+	assert.Len(t, result, 1)
+	result2 := prompt.FilterPromptsByMode(prompts, "standalone")
+	assert.Len(t, result2, 1)
+}
+
+func TestFilterPromptsByMode_ComposableMode_OnlyShownWhenComposable(t *testing.T) {
+	prompts := []techdef.PromptDef{
+		{Key: "chart_name", Title: "Chart name:", Type: "text", Mode: "composable"},
+	}
+	result := prompt.FilterPromptsByMode(prompts, "composable")
+	assert.Len(t, result, 1)
+
+	result2 := prompt.FilterPromptsByMode(prompts, "standalone")
+	assert.Len(t, result2, 0)
+
+	result3 := prompt.FilterPromptsByMode(prompts, "")
+	assert.Len(t, result3, 0)
+}
+
+func TestFilterPromptsByMode_StandaloneMode_OnlyShownWhenStandalone(t *testing.T) {
+	prompts := []techdef.PromptDef{
+		{Key: "flavor", Title: "Flavor:", Type: "text", Mode: "standalone"},
+	}
+	result := prompt.FilterPromptsByMode(prompts, "standalone")
+	assert.Len(t, result, 1)
+
+	result2 := prompt.FilterPromptsByMode(prompts, "composable")
+	assert.Len(t, result2, 0)
+}
+
 func TestSanitiseForIdentifier(t *testing.T) {
 	tests := []struct {
 		input    string

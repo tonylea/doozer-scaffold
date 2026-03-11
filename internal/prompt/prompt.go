@@ -32,16 +32,35 @@ func SanitiseForIdentifier(projectName string) string {
 	return strings.ToLower(cleaned)
 }
 
+// FilterPromptsByMode returns only the prompts that should be shown for the given
+// resolved variant mode. prompts with no mode are always shown. prompts with a
+// mode ("standalone" or "composable") are only shown when the mode matches.
+// resolvedMode is "" for non-variant-group techs, "standalone", or "composable".
+func FilterPromptsByMode(prompts []techdef.PromptDef, resolvedMode string) []techdef.PromptDef {
+	var result []techdef.PromptDef
+	for _, p := range prompts {
+		if p.Mode == "" {
+			result = append(result, p)
+		} else if p.Mode == resolvedMode {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 // Run presents the interactive prompt flow and populates cfg with user selections.
 // Phase 1: project name, provider, technology multi-select.
-// Phase 2: tech-driven prompts, licence, docs, tooling, repo config, confirm.
+// Phase 2: tech-driven prompts (with variant group resolution), licence, docs, tooling, repo config, confirm.
 func Run(cfg *config.Config, techDefs map[string]*techdef.TechDef) error {
 	phase1Groups := buildPhase1Groups(cfg, techDefs)
 	if err := huh.NewForm(phase1Groups...).Run(); err != nil {
 		return err
 	}
 
-	techPromptGroups := buildTechPromptGroups(cfg, techDefs)
+	// Resolve variant group selections to actual defs and determine mode
+	resolvedTechs, modeMap := techdef.ResolveVariantGroups(cfg.Technologies, techDefs)
+
+	techPromptGroups := buildTechPromptGroupsResolved(cfg, resolvedTechs, modeMap)
 	phase2Groups := append(techPromptGroups, buildPhase2Groups(cfg)...)
 	return huh.NewForm(phase2Groups...).Run()
 }
@@ -101,19 +120,31 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 	return groups
 }
 
-func buildTechPromptGroups(cfg *config.Config, techDefs map[string]*techdef.TechDef) []*huh.Group {
+// buildTechPromptGroupsResolved builds prompt groups for resolved technology definitions,
+// filtering prompts by mode (only showing composable prompts when composable was resolved, etc.).
+// modeMap maps variant group names to their resolved mode ("standalone" or "composable").
+func buildTechPromptGroupsResolved(cfg *config.Config, resolvedTechs []*techdef.TechDef, modeMap map[string]string) []*huh.Group {
 	if cfg.TechPromptResponses == nil {
 		cfg.TechPromptResponses = make(map[string]string)
 	}
 
-	keys := make([]string, len(cfg.Technologies))
-	copy(keys, cfg.Technologies)
-	sort.Strings(keys)
+	// Sort by name for deterministic order
+	sorted := make([]*techdef.TechDef, len(resolvedTechs))
+	copy(sorted, resolvedTechs)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
 
 	var groups []*huh.Group
-	for _, key := range keys {
-		def := techDefs[key]
-		for _, p := range def.Prompts {
+	for _, def := range sorted {
+		// Determine the resolved mode for this tech
+		resolvedMode := ""
+		if def.VariantGroup != "" {
+			resolvedMode = modeMap[def.VariantGroup]
+		}
+
+		filtered := FilterPromptsByMode(def.Prompts, resolvedMode)
+		for _, p := range filtered {
 			promptKey := p.Key
 			switch p.Type {
 			case "text":
@@ -122,7 +153,6 @@ func buildTechPromptGroups(cfg *config.Config, techDefs map[string]*techdef.Tech
 					defaultVal = SanitiseForIdentifier(cfg.ProjectName)
 				}
 				cfg.TechPromptResponses[promptKey] = defaultVal
-				// Use a pointer to a local that writes back to map
 				localVal := defaultVal
 				localKey := promptKey
 				title := p.Title
