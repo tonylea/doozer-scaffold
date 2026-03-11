@@ -127,3 +127,86 @@ func TestConfigAllowsSingleStandaloneTech(t *testing.T) {
 	err := cfg.Validate(techDefs)
 	assert.NoError(t, err)
 }
+
+// --- Stage 3b: variant group config validation ---
+
+func makeVariantGroupDefs() map[string]*techdef.TechDef {
+	return map[string]*techdef.TechDef{
+		"grp-standalone": {
+			Name:         "Group Standalone",
+			VariantGroup: "MyGroup",
+			Standalone:   true,
+			Structure:    []techdef.StructureEntry{{Path: "src/"}},
+			Gitignore:    "*.log",
+		},
+		"grp-composable": {
+			Name:         "Group Composable",
+			VariantGroup: "MyGroup",
+			Standalone:   false,
+			Structure:    []techdef.StructureEntry{{Path: "deploy/"}},
+			Gitignore:    "*.log",
+		},
+		"go": {
+			Name:       "Go",
+			Standalone: false,
+			Structure:  []techdef.StructureEntry{{Path: "cmd/"}},
+			Gitignore:  "*.exe",
+		},
+		"standalone-only": {
+			Name:       "Standalone Only",
+			Standalone: true,
+			Structure:  []techdef.StructureEntry{{Path: "lib/"}},
+			Gitignore:  "*.log",
+		},
+	}
+}
+
+func TestConfigAcceptsVariantGroupKey(t *testing.T) {
+	techDefs := makeVariantGroupDefs()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Technologies: []string{"MyGroup"},
+		Licence:      "none",
+	}
+	err := cfg.Validate(techDefs)
+	assert.NoError(t, err)
+}
+
+func TestConfigAcceptsVariantGroupWithOtherTechs(t *testing.T) {
+	techDefs := makeVariantGroupDefs()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Technologies: []string{"MyGroup", "go"},
+		Licence:      "none",
+	}
+	err := cfg.Validate(techDefs)
+	assert.NoError(t, err)
+}
+
+func TestConfigRejectsStandaloneOnlyWithVariantGroup(t *testing.T) {
+	techDefs := makeVariantGroupDefs()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Technologies: []string{"standalone-only", "go"},
+		Licence:      "none",
+	}
+	err := cfg.Validate(techDefs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "standalone")
+}
+
+func TestConfigRejectsUnknownTechnology(t *testing.T) {
+	techDefs := makeVariantGroupDefs()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Technologies: []string{"nonexistent-tech"},
+		Licence:      "none",
+	}
+	err := cfg.Validate(techDefs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown technology")
+}

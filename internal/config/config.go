@@ -34,17 +34,26 @@ func (c *Config) Validate(techDefs map[string]*techdef.TechDef) error {
 	if c.Licence == "" {
 		return fmt.Errorf("licence is required")
 	}
-	// Validate all technology keys exist
+	variantGroups := techdef.BuildVariantGroups(techDefs)
+	// Validate all technology keys exist (in defs or as a variant group name)
 	for _, key := range c.Technologies {
 		if _, ok := techDefs[key]; !ok {
-			return fmt.Errorf("unknown technology '%s'", key)
+			if _, ok := variantGroups[key]; !ok {
+				return fmt.Errorf("unknown technology '%s'", key)
+			}
 		}
 	}
-	// Standalone constraint
+	// Standalone constraint: only applies to non-variant-group techs
 	if len(c.Technologies) > 1 {
 		for _, key := range c.Technologies {
-			def := techDefs[key]
-			if def.Standalone {
+			if _, isGroup := variantGroups[key]; isGroup {
+				continue // Variant group techs are always composable-capable
+			}
+			def, ok := techDefs[key]
+			if !ok {
+				continue
+			}
+			if def.Standalone && def.VariantGroup == "" {
 				return fmt.Errorf("technology '%s' is standalone and cannot be combined with others", def.Name)
 			}
 		}
