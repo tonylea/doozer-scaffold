@@ -298,7 +298,7 @@ func TestCIComposition_SingleTech(t *testing.T) {
 			},
 		},
 	}
-	result, err := scaffold.RenderCIConfig(techs)
+	result, err := scaffold.RenderCIConfig(techs, nil)
 	require.NoError(t, err)
 	ciStr := string(result)
 
@@ -330,7 +330,7 @@ func TestCIComposition_MultipleTechs(t *testing.T) {
 			},
 		},
 	}
-	result, err := scaffold.RenderCIConfig(techs)
+	result, err := scaffold.RenderCIConfig(techs, nil)
 	require.NoError(t, err)
 	ciStr := string(result)
 
@@ -355,7 +355,7 @@ func TestCIComposition_SetupStepsInBothJobs(t *testing.T) {
 			},
 		},
 	}
-	result, err := scaffold.RenderCIConfig(techs)
+	result, err := scaffold.RenderCIConfig(techs, nil)
 	require.NoError(t, err)
 	ciStr := string(result)
 
@@ -368,7 +368,7 @@ func TestCIComposition_FallbackPlaceholder(t *testing.T) {
 	techs := []*techdef.TechDef{
 		{Name: "NoCi"},
 	}
-	result, err := scaffold.RenderCIConfig(techs)
+	result, err := scaffold.RenderCIConfig(techs, nil)
 	require.NoError(t, err)
 	assert.Contains(t, string(result), "TODO")
 }
