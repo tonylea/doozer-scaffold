@@ -198,7 +198,7 @@ func TestLoadAllTechDefs(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
-	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "powershell", "python", "terraform-infrastructure", "terraform-module"}
+	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "helm-chart", "helm-deployment", "powershell", "python", "terraform-infrastructure", "terraform-module"}
 	actualKeys := make([]string, 0, len(defs))
 	for key := range defs {
 		actualKeys = append(actualKeys, key)
@@ -356,13 +356,29 @@ func TestDockerfileDefinitionsHaveDockerExtension(t *testing.T) {
 	}
 }
 
-func TestDockerfileImageCannotCombineWithOtherTechs(t *testing.T) {
+func TestDockerfileImageVariantGroupAllowsCombination(t *testing.T) {
+	// After Stage 3b migration, dockerfile-image has variant_group: "Dockerfile"
+	// so combining it directly with another tech is allowed by config.Validate.
+	// The standalone constraint only applies to techs without a variant_group.
 	defs, _ := techdef.Load()
 	cfg := &config.Config{
 		ProjectName:  "test",
 		Provider:     "github",
 		Licence:      "none",
 		Technologies: []string{"dockerfile-image", "go"},
+	}
+	err := cfg.Validate(defs)
+	assert.NoError(t, err)
+}
+
+func TestPowerShellCannotCombineWithOtherTechs(t *testing.T) {
+	// powershell has no variant_group and is standalone — must still be rejected
+	defs, _ := techdef.Load()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Licence:      "none",
+		Technologies: []string{"powershell", "go"},
 	}
 	err := cfg.Validate(defs)
 	assert.Error(t, err)
@@ -429,4 +445,242 @@ func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
 	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
 	err := scaffold.DetectPathConflicts(techs, data)
 	assert.NoError(t, err)
+}
+
+// --- Stage 3b: Helm definitions ---
+
+func TestHelmChartDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "helm-chart")
+
+	def := defs["helm-chart"]
+	assert.Equal(t, "Helm Chart", def.Name)
+	assert.Equal(t, "Helm", def.VariantGroup)
+	assert.True(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "helm", def.CI.JobName)
+	assert.Empty(t, def.Prompts)
+}
+
+func TestHelmDeploymentDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "helm-deployment")
+
+	def := defs["helm-deployment"]
+	assert.Equal(t, "Helm Deployment", def.Name)
+	assert.Equal(t, "Helm", def.VariantGroup)
+	assert.False(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "helm", def.CI.JobName)
+	require.Len(t, def.Prompts, 1)
+	assert.Equal(t, "chart_name", def.Prompts[0].Key)
+	assert.Equal(t, "composable", def.Prompts[0].Mode)
+}
+
+func TestHelmVariantGroupValidates(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	err = techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
+// --- Stage 3b: Terraform + Dockerfile variant group migration ---
+
+func TestTerraformDefsHaveVariantGroup(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "Terraform", defs["terraform-module"].VariantGroup)
+	assert.Equal(t, "Terraform", defs["terraform-infrastructure"].VariantGroup)
+}
+
+func TestDockerfileDefsHaveVariantGroup(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "Dockerfile", defs["dockerfile-image"].VariantGroup)
+	assert.Equal(t, "Dockerfile", defs["dockerfile-service"].VariantGroup)
+}
+
+// --- Stage 3b: Variant group schema ---
+
+func TestVariantGroupFieldParsed(t *testing.T) {
+	def := &techdef.TechDef{
+		Name:         "Test",
+		VariantGroup: "MyGroup",
+		Structure:    []techdef.StructureEntry{{Path: "src/"}},
+		Gitignore:    "*.log",
+	}
+	assert.Equal(t, "MyGroup", def.VariantGroup)
+}
+
+func TestPromptModeFieldParsed(t *testing.T) {
+	p := techdef.PromptDef{
+		Key:   "chart_name",
+		Title: "Chart name:",
+		Type:  "text",
+		Mode:  "composable",
+	}
+	assert.Equal(t, "composable", p.Mode)
+}
+
+func TestValidateVariantGroups_Valid(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-standalone": {
+			Name:         "Group Standalone",
+			VariantGroup: "MyGroup",
+			Standalone:   true,
+			Structure:    []techdef.StructureEntry{{Path: "src/"}},
+			Gitignore:    "*.log",
+		},
+		"grp-composable": {
+			Name:         "Group Composable",
+			VariantGroup: "MyGroup",
+			Standalone:   false,
+			Structure:    []techdef.StructureEntry{{Path: "deploy/"}},
+			Gitignore:    "*.log",
+		},
+		"standalone-only": {
+			Name:       "Standalone Only",
+			Standalone: true,
+			Structure:  []techdef.StructureEntry{{Path: "lib/"}},
+			Gitignore:  "*.log",
+		},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
+func TestValidateVariantGroups_MissingComposable(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-a": {Name: "Group A", VariantGroup: "MyGroup", Standalone: true,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+		"grp-b": {Name: "Group B", VariantGroup: "MyGroup", Standalone: true,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "MyGroup")
+}
+
+func TestValidateVariantGroups_MissingStandalone(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-a": {Name: "Group A", VariantGroup: "MyGroup", Standalone: false,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+		"grp-b": {Name: "Group B", VariantGroup: "MyGroup", Standalone: false,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "MyGroup")
+}
+
+func TestLoadValidatesVariantGroups(t *testing.T) {
+	// The loaded defs should all pass variant group validation since
+	// currently no defs have variant_group set yet.
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	err = techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
+func TestBuildVariantGroups(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "Group SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "Group C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa":  standalonedef,
+		"grp-c":   composabledef,
+		"regular": regulardef,
+	}
+	groups := techdef.BuildVariantGroups(defs)
+	require.Len(t, groups, 1)
+	pair, ok := groups["MyGroup"]
+	require.True(t, ok)
+	assert.Equal(t, standalonedef, pair.Standalone)
+	assert.Equal(t, composabledef, pair.Composable)
+}
+
+func TestResolveVariantGroups_SoleSelection_GivesStandalone(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa": standalonedef,
+		"grp-c":  composabledef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"MyGroup"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, standalonedef, resolved[0])
+	assert.Equal(t, "standalone", modeMap["MyGroup"])
+}
+
+func TestResolveVariantGroups_MultiSelection_GivesComposable(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa":  standalonedef,
+		"grp-c":   composabledef,
+		"regular": regulardef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"MyGroup", "regular"}, defs)
+	require.Len(t, resolved, 2)
+	assert.Equal(t, composabledef, resolved[0])
+	assert.Equal(t, regulardef, resolved[1])
+	assert.Equal(t, "composable", modeMap["MyGroup"])
+}
+
+func TestResolveVariantGroups_RegularKeysPassThrough(t *testing.T) {
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"regular": regulardef,
+	}
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"regular"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, regulardef, resolved[0])
+	assert.Empty(t, modeMap)
+}
+
+func TestPromptValidation_InvalidMode(t *testing.T) {
+	def := &techdef.TechDef{
+		Name:      "Test",
+		Structure: []techdef.StructureEntry{{Path: "src/"}},
+		Gitignore: "*.log",
+		Prompts: []techdef.PromptDef{
+			{Key: "foo", Title: "Foo:", Type: "text", Mode: "badmode"},
+		},
+	}
+	err := def.Validate("test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "mode")
 }

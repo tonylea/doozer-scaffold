@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tonylea/doozer-scaffold/internal/config"
+	"github.com/tonylea/doozer-scaffold/internal/prompt"
 	"github.com/tonylea/doozer-scaffold/internal/scaffold"
 	"github.com/tonylea/doozer-scaffold/internal/techdef"
 )
@@ -532,10 +533,11 @@ func TestStandaloneConstraintRejected(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
+	// powershell has no variant_group and is standalone — combining with go must fail
 	cfg := &config.Config{
 		ProjectName:  "bad-combo",
 		Provider:     "github",
-		Technologies: []string{"terraform-module", "go"},
+		Technologies: []string{"powershell", "go"},
 		Licence:      "none",
 		Confirmed:    true,
 	}
@@ -800,10 +802,11 @@ func TestAcceptance_DockerfileImageStandaloneRejection(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
+	// powershell has no variant_group and is standalone — combining with go must fail
 	cfg := &config.Config{
 		ProjectName:  "bad-combo",
 		Provider:     "github",
-		Technologies: []string{"dockerfile-image", "go"},
+		Technologies: []string{"powershell", "go"},
 		Licence:      "none",
 		Confirmed:    true,
 	}
@@ -811,6 +814,189 @@ func TestAcceptance_DockerfileImageStandaloneRejection(t *testing.T) {
 	err = cfg.Validate(defs)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "standalone")
+}
+
+// --- Stage 3b: Helm acceptance tests ---
+
+func TestAcceptance_HelmChart_Standalone(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	cfg := &config.Config{
+		ProjectName:  "my-chart",
+		Provider:     "github",
+		Technologies: []string{"Helm"},
+		Licence:      "none",
+		Docs:         []string{},
+		Tooling:      []string{},
+		RepoConfig:   []string{},
+		Confirmed:    true,
+	}
+
+	// Resolve variant groups: "Helm" sole selection → helm-chart (standalone)
+	resolvedTechs, _ := techdef.ResolveVariantGroups(cfg.Technologies, defs)
+
+	baseDir := t.TempDir()
+	err = scaffold.Generate(cfg, resolvedTechs, baseDir)
+	require.NoError(t, err)
+
+	root := filepath.Join(baseDir, "my-chart")
+
+	// Chart.yaml uses ProjectName
+	chartYaml, err := os.ReadFile(filepath.Join(root, "Chart.yaml"))
+	require.NoError(t, err)
+	chartStr := string(chartYaml)
+	assert.Contains(t, chartStr, "name: my-chart")
+	assert.NotContains(t, chartStr, "{{")
+
+	// Structure at project root
+	assert.FileExists(t, filepath.Join(root, "values.yaml"))
+	assert.FileExists(t, filepath.Join(root, ".helmignore"))
+	assert.DirExists(t, filepath.Join(root, "templates"))
+	assert.FileExists(t, filepath.Join(root, "templates/deployment.yaml"))
+	assert.FileExists(t, filepath.Join(root, "templates/service.yaml"))
+	assert.FileExists(t, filepath.Join(root, "templates/serviceaccount.yaml"))
+	assert.FileExists(t, filepath.Join(root, "templates/hpa.yaml"))
+	assert.FileExists(t, filepath.Join(root, "templates/ingress.yaml"))
+	assert.FileExists(t, filepath.Join(root, "templates/_helpers.tpl"))
+	assert.FileExists(t, filepath.Join(root, "templates/NOTES.txt"))
+	assert.FileExists(t, filepath.Join(root, "templates/tests/test-connection.yaml"))
+	assert.DirExists(t, filepath.Join(root, "charts"))
+	assert.DirExists(t, filepath.Join(root, "tests"))
+	assert.FileExists(t, filepath.Join(root, "tests/deployment_test.yaml"))
+	assert.FileExists(t, filepath.Join(root, "tests/service_test.yaml"))
+
+	// Templates should not have literal {{ escaped sequences
+	deployment, _ := os.ReadFile(filepath.Join(root, "templates/deployment.yaml"))
+	depStr := string(deployment)
+	assert.NotContains(t, depStr, `{{"{{"}}`)
+	assert.Contains(t, depStr, "{{")
+	assert.Contains(t, depStr, "my-chart.fullname")
+	assert.Contains(t, depStr, "my-chart.labels")
+
+	helpers, _ := os.ReadFile(filepath.Join(root, "templates/_helpers.tpl"))
+	helpersStr := string(helpers)
+	assert.Contains(t, helpersStr, `define "my-chart.fullname"`)
+
+	// Gitignore contains Helm section
+	gitignore, _ := os.ReadFile(filepath.Join(root, ".gitignore"))
+	assert.Contains(t, string(gitignore), "# Helm Chart")
+	assert.Contains(t, string(gitignore), "*.tgz")
+
+	// CI contains helm jobs referencing "."
+	ci, _ := os.ReadFile(filepath.Join(root, ".github/workflows/ci.yml"))
+	ciStr := string(ci)
+	assert.Contains(t, ciStr, "lint-helm")
+	assert.Contains(t, ciStr, "test-helm")
+	assert.Contains(t, ciStr, "helm lint .")
+	assert.Contains(t, ciStr, "helm unittest .")
+
+	// Devcontainer has kubernetes tools extension
+	dcJSON, _ := os.ReadFile(filepath.Join(root, ".devcontainer/devcontainer.json"))
+	assert.Contains(t, string(dcJSON), "ms-kubernetes-tools.vscode-kubernetes-tools")
+}
+
+func TestAcceptance_HelmDeployment_Composable_WithGo(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	chartName := "my-app"
+	cfg := &config.Config{
+		ProjectName:         "polyglot",
+		Provider:            "github",
+		Technologies:        []string{"Helm", "go"},
+		TechPromptResponses: map[string]string{"chart_name": chartName},
+		Licence:             "none",
+		Docs:                []string{},
+		Tooling:             []string{},
+		RepoConfig:          []string{},
+		Confirmed:           true,
+	}
+
+	// Resolve variant groups: "Helm" with others → helm-deployment (composable)
+	resolvedTechs, _ := techdef.ResolveVariantGroups(cfg.Technologies, defs)
+	sort.Slice(resolvedTechs, func(i, j int) bool {
+		return resolvedTechs[i].Name < resolvedTechs[j].Name
+	})
+
+	baseDir := t.TempDir()
+	err = scaffold.Generate(cfg, resolvedTechs, baseDir)
+	require.NoError(t, err)
+
+	root := filepath.Join(baseDir, "polyglot")
+
+	// Chart nested under deploy/helm/<chart_name>/
+	chartDir := filepath.Join(root, "deploy/helm", chartName)
+	assert.DirExists(t, chartDir)
+
+	chartYaml, err := os.ReadFile(filepath.Join(chartDir, "Chart.yaml"))
+	require.NoError(t, err)
+	chartStr := string(chartYaml)
+	assert.Contains(t, chartStr, "name: my-app")
+	assert.NotContains(t, chartStr, "{{")
+
+	// Templates use chart_name not ProjectName
+	deployment, _ := os.ReadFile(filepath.Join(chartDir, "templates/deployment.yaml"))
+	depStr := string(deployment)
+	assert.Contains(t, depStr, "my-app.fullname")
+	assert.Contains(t, depStr, "my-app.labels")
+	assert.NotContains(t, depStr, "polyglot.fullname")
+
+	helpers, _ := os.ReadFile(filepath.Join(chartDir, "templates/_helpers.tpl"))
+	helpersStr := string(helpers)
+	assert.Contains(t, helpersStr, `define "my-app.fullname"`)
+
+	// No chart files at root
+	assert.NoFileExists(t, filepath.Join(root, "Chart.yaml"))
+
+	// CI references deploy/helm/my-app
+	ci, _ := os.ReadFile(filepath.Join(root, ".github/workflows/ci.yml"))
+	ciStr := string(ci)
+	assert.Contains(t, ciStr, "helm lint deploy/helm/my-app")
+	assert.Contains(t, ciStr, "helm unittest deploy/helm/my-app")
+	assert.Contains(t, ciStr, "lint-go")
+	assert.Contains(t, ciStr, "lint-helm")
+}
+
+func TestAcceptance_HelmVariantGroupResolution(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	// Sole selection: Helm → standalone (helm-chart)
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"Helm"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, "Helm Chart", resolved[0].Name)
+	assert.True(t, resolved[0].Standalone)
+	assert.Equal(t, "standalone", modeMap["Helm"])
+
+	// Multi-selection: Helm + go → composable (helm-deployment)
+	resolved2, modeMap2 := techdef.ResolveVariantGroups([]string{"Helm", "go"}, defs)
+	require.Len(t, resolved2, 2)
+	helmDef := resolved2[0]
+	if helmDef.Name != "Helm Deployment" {
+		helmDef = resolved2[1]
+	}
+	assert.Equal(t, "Helm Deployment", helmDef.Name)
+	assert.False(t, helmDef.Standalone)
+	assert.Equal(t, "composable", modeMap2["Helm"])
+}
+
+func TestAcceptance_HelmChartNamePromptOnlyInComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	helmDeployment := defs["helm-deployment"]
+	require.Len(t, helmDeployment.Prompts, 1)
+	assert.Equal(t, "composable", helmDeployment.Prompts[0].Mode)
+
+	// In standalone mode, chart_name prompt is NOT shown
+	filtered := prompt.FilterPromptsByMode(helmDeployment.Prompts, "standalone")
+	assert.Empty(t, filtered)
+
+	// In composable mode, chart_name prompt IS shown
+	filtered2 := prompt.FilterPromptsByMode(helmDeployment.Prompts, "composable")
+	assert.Len(t, filtered2, 1)
+	assert.Equal(t, "chart_name", filtered2[0].Key)
 }
 
 func TestAcceptance_AllComposable_WithDockerfileService(t *testing.T) {

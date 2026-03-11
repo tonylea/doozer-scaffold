@@ -140,7 +140,7 @@ func createScaffold(cfg *config.Config, techs []*techdef.TechDef, targetDir stri
 		return err
 	}
 
-	ciContent, err := RenderCIConfig(techs)
+	ciContent, err := RenderCIConfig(techs, templateData)
 	if err != nil {
 		return fmt.Errorf("rendering CI config: %w", err)
 	}
@@ -270,7 +270,8 @@ func ComposeGitignore(techs []*techdef.TechDef) string {
 }
 
 // RenderCIConfig composes a three-stage CI pipeline from all selected technologies.
-func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
+// templateData is used to resolve template variables in CI step run commands (e.g., {{.chart_name}}).
+func RenderCIConfig(techs []*techdef.TechDef, templateData map[string]string) ([]byte, error) {
 	// Collect technologies that contribute CI
 	var ciTechs []*techdef.TechDef
 	for _, tech := range techs {
@@ -295,6 +296,17 @@ func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
 
 	var jobEntries []ciJobEntry
 
+	resolveRun := func(run string) string {
+		if len(templateData) == 0 {
+			return run
+		}
+		resolved, err := ResolveTemplate(run, templateData)
+		if err != nil {
+			return run // fall back to original on error
+		}
+		return resolved
+	}
+
 	for _, tech := range ciTechs {
 		setupSteps := []interface{}{
 			map[string]interface{}{"uses": "actions/checkout@v4"},
@@ -313,7 +325,7 @@ func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
 				}
 			}
 			if s.Run != "" {
-				step["run"] = s.Run
+				step["run"] = resolveRun(s.Run)
 			}
 			setupSteps = append(setupSteps, step)
 		}
@@ -324,7 +336,7 @@ func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
 		for _, s := range tech.CI.LintSteps {
 			lintSteps = append(lintSteps, map[string]interface{}{
 				"name": s.Name,
-				"run":  s.Run,
+				"run":  resolveRun(s.Run),
 			})
 		}
 		jobEntries = append(jobEntries, ciJobEntry{
@@ -341,7 +353,7 @@ func RenderCIConfig(techs []*techdef.TechDef) ([]byte, error) {
 		for _, s := range tech.CI.TestSteps {
 			testSteps = append(testSteps, map[string]interface{}{
 				"name": s.Name,
-				"run":  s.Run,
+				"run":  resolveRun(s.Run),
 			})
 		}
 		jobEntries = append(jobEntries, ciJobEntry{

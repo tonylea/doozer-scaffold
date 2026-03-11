@@ -16,6 +16,7 @@ var techFS embed.FS
 // TechDef represents a parsed technology definition.
 type TechDef struct {
 	Name         string           `yaml:"name"`
+	VariantGroup string           `yaml:"variant_group,omitempty"`
 	Standalone   bool             `yaml:"standalone"`
 	Prompts      []PromptDef      `yaml:"prompts,omitempty"`
 	Structure    []StructureEntry `yaml:"structure"`
@@ -46,9 +47,10 @@ type DevcontainerDef struct {
 type PromptDef struct {
 	Key         string      `yaml:"key"`
 	Title       string      `yaml:"title"`
-	Type        string      `yaml:"type"`        // "text", "select", "multi_select"
+	Type        string      `yaml:"type"`              // "text", "select", "multi_select"
 	DefaultFrom string      `yaml:"default_from,omitempty"`
 	Options     []OptionDef `yaml:"options,omitempty"`
+	Mode        string      `yaml:"mode,omitempty"` // "", "standalone", "composable"
 }
 
 // OptionDef defines a single option for select/multi_select prompts.
@@ -110,6 +112,92 @@ func Load() (map[string]*TechDef, error) {
 	return defs, nil
 }
 
+// VariantGroupPair holds the standalone and composable definitions for a variant group.
+type VariantGroupPair struct {
+	Standalone *TechDef
+	Composable *TechDef
+}
+
+// BuildVariantGroups returns a map from variant group name to its pair of definitions.
+func BuildVariantGroups(defs map[string]*TechDef) map[string]*VariantGroupPair {
+	groups := make(map[string]*VariantGroupPair)
+	for _, def := range defs {
+		if def.VariantGroup == "" {
+			continue
+		}
+		pair, ok := groups[def.VariantGroup]
+		if !ok {
+			pair = &VariantGroupPair{}
+			groups[def.VariantGroup] = pair
+		}
+		if def.Standalone {
+			pair.Standalone = def
+		} else {
+			pair.Composable = def
+		}
+	}
+	return groups
+}
+
+// ResolveVariantGroups resolves a slice of selected keys (which may include variant group
+// names or regular definition keys) to actual TechDef pointers based on selection context.
+// Returns the resolved TechDef slice and a map from variant group name to resolved mode
+// ("standalone" or "composable").
+func ResolveVariantGroups(selectedKeys []string, defs map[string]*TechDef) ([]*TechDef, map[string]string) {
+	variantGroups := BuildVariantGroups(defs)
+	composable := len(selectedKeys) > 1
+
+	resolved := make([]*TechDef, 0, len(selectedKeys))
+	modeMap := make(map[string]string)
+
+	for _, key := range selectedKeys {
+		if pair, ok := variantGroups[key]; ok {
+			if composable {
+				resolved = append(resolved, pair.Composable)
+				modeMap[key] = "composable"
+			} else {
+				resolved = append(resolved, pair.Standalone)
+				modeMap[key] = "standalone"
+			}
+		} else if def, ok := defs[key]; ok {
+			resolved = append(resolved, def)
+		}
+	}
+	return resolved, modeMap
+}
+
+// ValidateVariantGroups checks that each variant_group name has exactly one
+// standalone: true and one standalone: false definition.
+func ValidateVariantGroups(defs map[string]*TechDef) error {
+	type groupInfo struct {
+		standaloneCount  int
+		composableCount  int
+	}
+	groups := make(map[string]*groupInfo)
+	for _, def := range defs {
+		if def.VariantGroup == "" {
+			continue
+		}
+		info, ok := groups[def.VariantGroup]
+		if !ok {
+			info = &groupInfo{}
+			groups[def.VariantGroup] = info
+		}
+		if def.Standalone {
+			info.standaloneCount++
+		} else {
+			info.composableCount++
+		}
+	}
+	for name, info := range groups {
+		if info.standaloneCount != 1 || info.composableCount != 1 {
+			return fmt.Errorf("variant_group '%s' must have exactly one standalone and one composable definition (got %d standalone, %d composable)",
+				name, info.standaloneCount, info.composableCount)
+		}
+	}
+	return nil
+}
+
 var promptKeyPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 
 // Validate checks that a TechDef is well-formed. The key is the technology's
@@ -152,6 +240,9 @@ func (t *TechDef) Validate(key string) error {
 		}
 		if (p.Type == "select" || p.Type == "multi_select") && len(p.Options) == 0 {
 			return fmt.Errorf("technology '%s': prompts[%d] options required for type '%s'", key, i, p.Type)
+		}
+		if p.Mode != "" && p.Mode != "standalone" && p.Mode != "composable" {
+			return fmt.Errorf("technology '%s': prompts[%d] mode must be empty, 'standalone', or 'composable'", key, i)
 		}
 	}
 

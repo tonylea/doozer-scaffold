@@ -32,16 +32,36 @@ func SanitiseForIdentifier(projectName string) string {
 	return strings.ToLower(cleaned)
 }
 
+// FilterPromptsByMode returns only the prompts that should be shown for the given
+// resolved variant mode. prompts with no mode are always shown. prompts with a
+// mode ("standalone" or "composable") are only shown when the mode matches.
+// resolvedMode is "" for non-variant-group techs, "standalone", or "composable".
+func FilterPromptsByMode(prompts []techdef.PromptDef, resolvedMode string) []techdef.PromptDef {
+	var result []techdef.PromptDef
+	for _, p := range prompts {
+		switch p.Mode {
+		case "":
+			result = append(result, p)
+		case resolvedMode:
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 // Run presents the interactive prompt flow and populates cfg with user selections.
 // Phase 1: project name, provider, technology multi-select.
-// Phase 2: tech-driven prompts, licence, docs, tooling, repo config, confirm.
+// Phase 2: tech-driven prompts (with variant group resolution), licence, docs, tooling, repo config, confirm.
 func Run(cfg *config.Config, techDefs map[string]*techdef.TechDef) error {
 	phase1Groups := buildPhase1Groups(cfg, techDefs)
 	if err := huh.NewForm(phase1Groups...).Run(); err != nil {
 		return err
 	}
 
-	techPromptGroups := buildTechPromptGroups(cfg, techDefs)
+	// Resolve variant group selections to actual defs and determine mode
+	resolvedTechs, modeMap := techdef.ResolveVariantGroups(cfg.Technologies, techDefs)
+
+	techPromptGroups := buildTechPromptGroupsResolved(cfg, resolvedTechs, modeMap)
 	phase2Groups := append(techPromptGroups, buildPhase2Groups(cfg)...)
 	return huh.NewForm(phase2Groups...).Run()
 }
@@ -63,6 +83,8 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 		))
 	}
 
+	variantGroups := techdef.BuildVariantGroups(techDefs)
+
 	groups = append(groups,
 		huh.NewGroup(
 			huh.NewSelect[string]().
@@ -83,8 +105,11 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 					}
 					if len(selected) > 1 {
 						for _, key := range selected {
-							if techDefs[key].Standalone {
-								return fmt.Errorf("'%s' is a standalone technology and cannot be combined with others", techDefs[key].Name)
+							if _, isGroup := variantGroups[key]; isGroup {
+								continue
+							}
+							if def, ok := techDefs[key]; ok && def.Standalone && def.VariantGroup == "" {
+								return fmt.Errorf("'%s' is a standalone technology and cannot be combined with others", def.Name)
 							}
 						}
 					}
@@ -96,19 +121,31 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 	return groups
 }
 
-func buildTechPromptGroups(cfg *config.Config, techDefs map[string]*techdef.TechDef) []*huh.Group {
+// buildTechPromptGroupsResolved builds prompt groups for resolved technology definitions,
+// filtering prompts by mode (only showing composable prompts when composable was resolved, etc.).
+// modeMap maps variant group names to their resolved mode ("standalone" or "composable").
+func buildTechPromptGroupsResolved(cfg *config.Config, resolvedTechs []*techdef.TechDef, modeMap map[string]string) []*huh.Group {
 	if cfg.TechPromptResponses == nil {
 		cfg.TechPromptResponses = make(map[string]string)
 	}
 
-	keys := make([]string, len(cfg.Technologies))
-	copy(keys, cfg.Technologies)
-	sort.Strings(keys)
+	// Sort by name for deterministic order
+	sorted := make([]*techdef.TechDef, len(resolvedTechs))
+	copy(sorted, resolvedTechs)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
 
 	var groups []*huh.Group
-	for _, key := range keys {
-		def := techDefs[key]
-		for _, p := range def.Prompts {
+	for _, def := range sorted {
+		// Determine the resolved mode for this tech
+		resolvedMode := ""
+		if def.VariantGroup != "" {
+			resolvedMode = modeMap[def.VariantGroup]
+		}
+
+		filtered := FilterPromptsByMode(def.Prompts, resolvedMode)
+		for _, p := range filtered {
 			promptKey := p.Key
 			switch p.Type {
 			case "text":
@@ -117,7 +154,6 @@ func buildTechPromptGroups(cfg *config.Config, techDefs map[string]*techdef.Tech
 					defaultVal = SanitiseForIdentifier(cfg.ProjectName)
 				}
 				cfg.TechPromptResponses[promptKey] = defaultVal
-				// Use a pointer to a local that writes back to map
 				localVal := defaultVal
 				localKey := promptKey
 				title := p.Title
@@ -213,25 +249,58 @@ func buildPhase2Groups(cfg *config.Config) []*huh.Group {
 	}
 }
 
-// buildTechOptions creates huh.Option entries from loaded technology definitions.
-// Options are sorted alphabetically by display name for consistent presentation.
-func buildTechOptions(techDefs map[string]*techdef.TechDef) []huh.Option[string] {
-	type techEntry struct {
-		key  string
-		name string
+// TechOption represents a single selectable technology option in the prompt.
+// For variant groups, Key is the group name and Name is the group name.
+// For regular technologies, Key is the definition key and Name is the definition name.
+type TechOption struct {
+	Key  string
+	Name string
+}
+
+// BuildTechOptionList builds an ordered list of TechOption entries from loaded technology
+// definitions, collapsing variant groups into single entries.
+// Options are sorted alphabetically by display name.
+func BuildTechOptionList(techDefs map[string]*techdef.TechDef) []TechOption {
+	variantGroups := techdef.BuildVariantGroups(techDefs)
+
+	// Track which keys have been represented by a variant group
+	coveredKeys := make(map[string]bool)
+	for _, def := range techDefs {
+		if def.VariantGroup != "" {
+			coveredKeys[def.VariantGroup] = true // mark group as seen
+		}
 	}
 
-	entries := make([]techEntry, 0, len(techDefs))
-	for key, def := range techDefs {
-		entries = append(entries, techEntry{key: key, name: def.Name})
+	var entries []TechOption
+
+	// Add one entry per variant group
+	for groupName := range variantGroups {
+		entries = append(entries, TechOption{Key: groupName, Name: groupName})
 	}
+
+	// Add regular (non-variant-group) technologies
+	for key, def := range techDefs {
+		if def.VariantGroup != "" {
+			continue // skip variant group members
+		}
+		entries = append(entries, TechOption{Key: key, Name: def.Name})
+	}
+
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].name < entries[j].name
+		return entries[i].Name < entries[j].Name
 	})
 
+	return entries
+}
+
+// buildTechOptions creates huh.Option entries from loaded technology definitions.
+// Options are sorted alphabetically by display name for consistent presentation.
+// Variant groups are collapsed into a single entry using the group name.
+func buildTechOptions(techDefs map[string]*techdef.TechDef) []huh.Option[string] {
+	entries := BuildTechOptionList(techDefs)
 	options := make([]huh.Option[string], 0, len(entries))
 	for _, e := range entries {
-		options = append(options, huh.NewOption(e.name, e.key))
+		options = append(options, huh.NewOption(e.Name, e.Key))
 	}
 	return options
 }
