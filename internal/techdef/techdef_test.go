@@ -513,6 +513,31 @@ func TestLoadValidatesVariantGroups(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestBuildVariantGroups(t *testing.T) {
+	standalonedef := &techdef.TechDef{
+		Name: "Group SA", VariantGroup: "MyGroup", Standalone: true,
+		Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log",
+	}
+	composabledef := &techdef.TechDef{
+		Name: "Group C", VariantGroup: "MyGroup", Standalone: false,
+		Structure: []techdef.StructureEntry{{Path: "deploy/"}}, Gitignore: "*.log",
+	}
+	regulardef := &techdef.TechDef{
+		Name: "Regular", Structure: []techdef.StructureEntry{{Path: "lib/"}}, Gitignore: "*.log",
+	}
+	defs := map[string]*techdef.TechDef{
+		"grp-sa":  standalonedef,
+		"grp-c":   composabledef,
+		"regular": regulardef,
+	}
+	groups := techdef.BuildVariantGroups(defs)
+	require.Len(t, groups, 1)
+	pair, ok := groups["MyGroup"]
+	require.True(t, ok)
+	assert.Equal(t, standalonedef, pair.Standalone)
+	assert.Equal(t, composabledef, pair.Composable)
+}
+
 func TestPromptValidation_InvalidMode(t *testing.T) {
 	def := &techdef.TechDef{
 		Name:      "Test",

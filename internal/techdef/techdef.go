@@ -112,6 +112,33 @@ func Load() (map[string]*TechDef, error) {
 	return defs, nil
 }
 
+// VariantGroupPair holds the standalone and composable definitions for a variant group.
+type VariantGroupPair struct {
+	Standalone *TechDef
+	Composable *TechDef
+}
+
+// BuildVariantGroups returns a map from variant group name to its pair of definitions.
+func BuildVariantGroups(defs map[string]*TechDef) map[string]*VariantGroupPair {
+	groups := make(map[string]*VariantGroupPair)
+	for _, def := range defs {
+		if def.VariantGroup == "" {
+			continue
+		}
+		pair, ok := groups[def.VariantGroup]
+		if !ok {
+			pair = &VariantGroupPair{}
+			groups[def.VariantGroup] = pair
+		}
+		if def.Standalone {
+			pair.Standalone = def
+		} else {
+			pair.Composable = def
+		}
+	}
+	return groups
+}
+
 // ValidateVariantGroups checks that each variant_group name has exactly one
 // standalone: true and one standalone: false definition.
 func ValidateVariantGroups(defs map[string]*TechDef) error {
