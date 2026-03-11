@@ -465,6 +465,31 @@ func TestHelmChartDefinitionLoads(t *testing.T) {
 	assert.Empty(t, def.Prompts)
 }
 
+func TestHelmDeploymentDefinitionLoads(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "helm-deployment")
+
+	def := defs["helm-deployment"]
+	assert.Equal(t, "Helm Deployment", def.Name)
+	assert.Equal(t, "Helm", def.VariantGroup)
+	assert.False(t, def.Standalone)
+	assert.NotEmpty(t, def.Structure)
+	assert.NotEmpty(t, def.Gitignore)
+	assert.NotNil(t, def.CI)
+	assert.Equal(t, "helm", def.CI.JobName)
+	require.Len(t, def.Prompts, 1)
+	assert.Equal(t, "chart_name", def.Prompts[0].Key)
+	assert.Equal(t, "composable", def.Prompts[0].Mode)
+}
+
+func TestHelmVariantGroupValidates(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	err = techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
 // --- Stage 3b: Terraform + Dockerfile variant group migration ---
 
 func TestTerraformDefsHaveVariantGroup(t *testing.T) {
