@@ -430,3 +430,39 @@ func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
 	err := scaffold.DetectPathConflicts(techs, data)
 	assert.NoError(t, err)
 }
+
+// --- Stage 3b: Variant group schema ---
+
+func TestVariantGroupFieldParsed(t *testing.T) {
+	def := &techdef.TechDef{
+		Name:         "Test",
+		VariantGroup: "MyGroup",
+		Structure:    []techdef.StructureEntry{{Path: "src/"}},
+		Gitignore:    "*.log",
+	}
+	assert.Equal(t, "MyGroup", def.VariantGroup)
+}
+
+func TestPromptModeFieldParsed(t *testing.T) {
+	p := techdef.PromptDef{
+		Key:   "chart_name",
+		Title: "Chart name:",
+		Type:  "text",
+		Mode:  "composable",
+	}
+	assert.Equal(t, "composable", p.Mode)
+}
+
+func TestPromptValidation_InvalidMode(t *testing.T) {
+	def := &techdef.TechDef{
+		Name:      "Test",
+		Structure: []techdef.StructureEntry{{Path: "src/"}},
+		Gitignore: "*.log",
+		Prompts: []techdef.PromptDef{
+			{Key: "foo", Title: "Foo:", Type: "text", Mode: "badmode"},
+		},
+	}
+	err := def.Validate("test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "mode")
+}

@@ -16,6 +16,7 @@ var techFS embed.FS
 // TechDef represents a parsed technology definition.
 type TechDef struct {
 	Name         string           `yaml:"name"`
+	VariantGroup string           `yaml:"variant_group,omitempty"`
 	Standalone   bool             `yaml:"standalone"`
 	Prompts      []PromptDef      `yaml:"prompts,omitempty"`
 	Structure    []StructureEntry `yaml:"structure"`
@@ -46,9 +47,10 @@ type DevcontainerDef struct {
 type PromptDef struct {
 	Key         string      `yaml:"key"`
 	Title       string      `yaml:"title"`
-	Type        string      `yaml:"type"`        // "text", "select", "multi_select"
+	Type        string      `yaml:"type"`              // "text", "select", "multi_select"
 	DefaultFrom string      `yaml:"default_from,omitempty"`
 	Options     []OptionDef `yaml:"options,omitempty"`
+	Mode        string      `yaml:"mode,omitempty"` // "", "standalone", "composable"
 }
 
 // OptionDef defines a single option for select/multi_select prompts.
@@ -152,6 +154,9 @@ func (t *TechDef) Validate(key string) error {
 		}
 		if (p.Type == "select" || p.Type == "multi_select") && len(p.Options) == 0 {
 			return fmt.Errorf("technology '%s': prompts[%d] options required for type '%s'", key, i, p.Type)
+		}
+		if p.Mode != "" && p.Mode != "standalone" && p.Mode != "composable" {
+			return fmt.Errorf("technology '%s': prompts[%d] mode must be empty, 'standalone', or 'composable'", key, i)
 		}
 	}
 
