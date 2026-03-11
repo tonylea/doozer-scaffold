@@ -1,4 +1,5 @@
 name: "Terraform (Infrastructure)"
+variant_group: "Terraform"
 standalone: false
 
 structure:

@@ -532,10 +532,11 @@ func TestStandaloneConstraintRejected(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
+	// powershell has no variant_group and is standalone — combining with go must fail
 	cfg := &config.Config{
 		ProjectName:  "bad-combo",
 		Provider:     "github",
-		Technologies: []string{"terraform-module", "go"},
+		Technologies: []string{"powershell", "go"},
 		Licence:      "none",
 		Confirmed:    true,
 	}
@@ -800,10 +801,11 @@ func TestAcceptance_DockerfileImageStandaloneRejection(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
+	// powershell has no variant_group and is standalone — combining with go must fail
 	cfg := &config.Config{
 		ProjectName:  "bad-combo",
 		Provider:     "github",
-		Technologies: []string{"dockerfile-image", "go"},
+		Technologies: []string{"powershell", "go"},
 		Licence:      "none",
 		Confirmed:    true,
 	}

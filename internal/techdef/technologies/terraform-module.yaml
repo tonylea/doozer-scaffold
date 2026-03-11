@@ -1,4 +1,5 @@
 name: "Terraform Module"
+variant_group: "Terraform"
 standalone: true
 
 structure:

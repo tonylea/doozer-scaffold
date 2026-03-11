@@ -1,4 +1,5 @@
 name: "Dockerfile (Service)"
+variant_group: "Dockerfile"
 standalone: false
 
 structure:

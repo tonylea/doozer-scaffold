@@ -356,13 +356,29 @@ func TestDockerfileDefinitionsHaveDockerExtension(t *testing.T) {
 	}
 }
 
-func TestDockerfileImageCannotCombineWithOtherTechs(t *testing.T) {
+func TestDockerfileImageVariantGroupAllowsCombination(t *testing.T) {
+	// After Stage 3b migration, dockerfile-image has variant_group: "Dockerfile"
+	// so combining it directly with another tech is allowed by config.Validate.
+	// The standalone constraint only applies to techs without a variant_group.
 	defs, _ := techdef.Load()
 	cfg := &config.Config{
 		ProjectName:  "test",
 		Provider:     "github",
 		Licence:      "none",
 		Technologies: []string{"dockerfile-image", "go"},
+	}
+	err := cfg.Validate(defs)
+	assert.NoError(t, err)
+}
+
+func TestPowerShellCannotCombineWithOtherTechs(t *testing.T) {
+	// powershell has no variant_group and is standalone — must still be rejected
+	defs, _ := techdef.Load()
+	cfg := &config.Config{
+		ProjectName:  "test",
+		Provider:     "github",
+		Licence:      "none",
+		Technologies: []string{"powershell", "go"},
 	}
 	err := cfg.Validate(defs)
 	assert.Error(t, err)
@@ -429,6 +445,24 @@ func TestDockerfileServiceNoPathConflictWithAllComposable(t *testing.T) {
 	data := map[string]string{"ProjectName": "test", "package_name": "test_app"}
 	err := scaffold.DetectPathConflicts(techs, data)
 	assert.NoError(t, err)
+}
+
+// --- Stage 3b: Terraform + Dockerfile variant group migration ---
+
+func TestTerraformDefsHaveVariantGroup(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "Terraform", defs["terraform-module"].VariantGroup)
+	assert.Equal(t, "Terraform", defs["terraform-infrastructure"].VariantGroup)
+}
+
+func TestDockerfileDefsHaveVariantGroup(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, "Dockerfile", defs["dockerfile-image"].VariantGroup)
+	assert.Equal(t, "Dockerfile", defs["dockerfile-service"].VariantGroup)
 }
 
 // --- Stage 3b: Variant group schema ---

@@ -1,4 +1,5 @@
 name: "Dockerfile (Image)"
+variant_group: "Dockerfile"
 standalone: true
 
 structure:
