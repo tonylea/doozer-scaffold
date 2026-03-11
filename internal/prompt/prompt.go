@@ -63,6 +63,8 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 		))
 	}
 
+	variantGroups := techdef.BuildVariantGroups(techDefs)
+
 	groups = append(groups,
 		huh.NewGroup(
 			huh.NewSelect[string]().
@@ -83,8 +85,11 @@ func buildPhase1Groups(cfg *config.Config, techDefs map[string]*techdef.TechDef)
 					}
 					if len(selected) > 1 {
 						for _, key := range selected {
-							if techDefs[key].Standalone {
-								return fmt.Errorf("'%s' is a standalone technology and cannot be combined with others", techDefs[key].Name)
+							if _, isGroup := variantGroups[key]; isGroup {
+								continue
+							}
+							if def, ok := techDefs[key]; ok && def.Standalone && def.VariantGroup == "" {
+								return fmt.Errorf("'%s' is a standalone technology and cannot be combined with others", def.Name)
 							}
 						}
 					}
@@ -213,25 +218,58 @@ func buildPhase2Groups(cfg *config.Config) []*huh.Group {
 	}
 }
 
-// buildTechOptions creates huh.Option entries from loaded technology definitions.
-// Options are sorted alphabetically by display name for consistent presentation.
-func buildTechOptions(techDefs map[string]*techdef.TechDef) []huh.Option[string] {
-	type techEntry struct {
-		key  string
-		name string
+// TechOption represents a single selectable technology option in the prompt.
+// For variant groups, Key is the group name and Name is the group name.
+// For regular technologies, Key is the definition key and Name is the definition name.
+type TechOption struct {
+	Key  string
+	Name string
+}
+
+// BuildTechOptionList builds an ordered list of TechOption entries from loaded technology
+// definitions, collapsing variant groups into single entries.
+// Options are sorted alphabetically by display name.
+func BuildTechOptionList(techDefs map[string]*techdef.TechDef) []TechOption {
+	variantGroups := techdef.BuildVariantGroups(techDefs)
+
+	// Track which keys have been represented by a variant group
+	coveredKeys := make(map[string]bool)
+	for _, def := range techDefs {
+		if def.VariantGroup != "" {
+			coveredKeys[def.VariantGroup] = true // mark group as seen
+		}
 	}
 
-	entries := make([]techEntry, 0, len(techDefs))
-	for key, def := range techDefs {
-		entries = append(entries, techEntry{key: key, name: def.Name})
+	var entries []TechOption
+
+	// Add one entry per variant group
+	for groupName := range variantGroups {
+		entries = append(entries, TechOption{Key: groupName, Name: groupName})
 	}
+
+	// Add regular (non-variant-group) technologies
+	for key, def := range techDefs {
+		if def.VariantGroup != "" {
+			continue // skip variant group members
+		}
+		entries = append(entries, TechOption{Key: key, Name: def.Name})
+	}
+
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].name < entries[j].name
+		return entries[i].Name < entries[j].Name
 	})
 
+	return entries
+}
+
+// buildTechOptions creates huh.Option entries from loaded technology definitions.
+// Options are sorted alphabetically by display name for consistent presentation.
+// Variant groups are collapsed into a single entry using the group name.
+func buildTechOptions(techDefs map[string]*techdef.TechDef) []huh.Option[string] {
+	entries := BuildTechOptionList(techDefs)
 	options := make([]huh.Option[string], 0, len(entries))
 	for _, e := range entries {
-		options = append(options, huh.NewOption(e.name, e.key))
+		options = append(options, huh.NewOption(e.Name, e.Key))
 	}
 	return options
 }
