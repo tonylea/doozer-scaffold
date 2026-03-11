@@ -453,6 +453,66 @@ func TestPromptModeFieldParsed(t *testing.T) {
 	assert.Equal(t, "composable", p.Mode)
 }
 
+func TestValidateVariantGroups_Valid(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-standalone": {
+			Name:         "Group Standalone",
+			VariantGroup: "MyGroup",
+			Standalone:   true,
+			Structure:    []techdef.StructureEntry{{Path: "src/"}},
+			Gitignore:    "*.log",
+		},
+		"grp-composable": {
+			Name:         "Group Composable",
+			VariantGroup: "MyGroup",
+			Standalone:   false,
+			Structure:    []techdef.StructureEntry{{Path: "deploy/"}},
+			Gitignore:    "*.log",
+		},
+		"standalone-only": {
+			Name:       "Standalone Only",
+			Standalone: true,
+			Structure:  []techdef.StructureEntry{{Path: "lib/"}},
+			Gitignore:  "*.log",
+		},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
+func TestValidateVariantGroups_MissingComposable(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-a": {Name: "Group A", VariantGroup: "MyGroup", Standalone: true,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+		"grp-b": {Name: "Group B", VariantGroup: "MyGroup", Standalone: true,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "MyGroup")
+}
+
+func TestValidateVariantGroups_MissingStandalone(t *testing.T) {
+	defs := map[string]*techdef.TechDef{
+		"grp-a": {Name: "Group A", VariantGroup: "MyGroup", Standalone: false,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+		"grp-b": {Name: "Group B", VariantGroup: "MyGroup", Standalone: false,
+			Structure: []techdef.StructureEntry{{Path: "src/"}}, Gitignore: "*.log"},
+	}
+	err := techdef.ValidateVariantGroups(defs)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "MyGroup")
+}
+
+func TestLoadValidatesVariantGroups(t *testing.T) {
+	// The loaded defs should all pass variant group validation since
+	// currently no defs have variant_group set yet.
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	err = techdef.ValidateVariantGroups(defs)
+	assert.NoError(t, err)
+}
+
 func TestPromptValidation_InvalidMode(t *testing.T) {
 	def := &techdef.TechDef{
 		Name:      "Test",

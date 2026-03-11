@@ -112,6 +112,38 @@ func Load() (map[string]*TechDef, error) {
 	return defs, nil
 }
 
+// ValidateVariantGroups checks that each variant_group name has exactly one
+// standalone: true and one standalone: false definition.
+func ValidateVariantGroups(defs map[string]*TechDef) error {
+	type groupInfo struct {
+		standaloneCount  int
+		composableCount  int
+	}
+	groups := make(map[string]*groupInfo)
+	for _, def := range defs {
+		if def.VariantGroup == "" {
+			continue
+		}
+		info, ok := groups[def.VariantGroup]
+		if !ok {
+			info = &groupInfo{}
+			groups[def.VariantGroup] = info
+		}
+		if def.Standalone {
+			info.standaloneCount++
+		} else {
+			info.composableCount++
+		}
+	}
+	for name, info := range groups {
+		if info.standaloneCount != 1 || info.composableCount != 1 {
+			return fmt.Errorf("variant_group '%s' must have exactly one standalone and one composable definition (got %d standalone, %d composable)",
+				name, info.standaloneCount, info.composableCount)
+		}
+	}
+	return nil
+}
+
 var promptKeyPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 
 // Validate checks that a TechDef is well-formed. The key is the technology's
