@@ -211,15 +211,39 @@ func TestLoadKeysMatchYAMLFilenames(t *testing.T) {
 	}
 }
 
-func TestTechDefStandaloneField(t *testing.T) {
+func TestPowerShellIsStandalone(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
-
+	require.Contains(t, defs, "powershell")
 	assert.True(t, defs["powershell"].Standalone)
-	assert.True(t, defs["terraform-module"].Standalone)
+}
+
+func TestGoIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "go")
 	assert.False(t, defs["go"].Standalone)
-	assert.False(t, defs["terraform-infrastructure"].Standalone)
+}
+
+func TestPythonIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "python")
 	assert.False(t, defs["python"].Standalone)
+}
+
+func TestTerraformModuleIsStandalone(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "terraform-module")
+	assert.True(t, defs["terraform-module"].Standalone)
+}
+
+func TestTerraformInfrastructureIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "terraform-infrastructure")
+	assert.False(t, defs["terraform-infrastructure"].Standalone)
 }
 
 func TestPythonHasPackageNamePrompt(t *testing.T) {
