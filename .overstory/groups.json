@@ -280,5 +280,35 @@
 		"status": "active",
 		"createdAt": "2026-03-12T10:40:47.581Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-5b3c4dfb",
+		"name": "stage-3c-ansible-role",
+		"memberIssueIds": [
+			"doozer-scaffold-bd00"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T11:34:46.927Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-33a7f219",
+		"name": "test-decoupling",
+		"memberIssueIds": [
+			"doozer-scaffold-bd00"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T12:11:37.353Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-e58cfcba",
+		"name": "fix-tests-batch",
+		"memberIssueIds": [
+			"doozer-scaffold-98fe"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T12:12:44.907Z",
+		"completedAt": null
 	}
 ]
