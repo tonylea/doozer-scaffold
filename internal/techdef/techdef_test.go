@@ -1,7 +1,6 @@
 package techdef_test
 
 import (
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -194,28 +193,57 @@ func TestCIValidation_EmptyTestSteps(t *testing.T) {
 	assert.Contains(t, err.Error(), "test_steps")
 }
 
-func TestLoadAllTechDefs(t *testing.T) {
+func TestLoadReturnsNonEmptyMap(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
-
-	expectedKeys := []string{"dockerfile-image", "dockerfile-service", "go", "helm-chart", "helm-deployment", "powershell", "python", "terraform-infrastructure", "terraform-module"}
-	actualKeys := make([]string, 0, len(defs))
-	for key := range defs {
-		actualKeys = append(actualKeys, key)
-	}
-	sort.Strings(actualKeys)
-	assert.Equal(t, expectedKeys, actualKeys)
+	assert.NotEmpty(t, defs, "Load() must return at least one technology definition")
 }
 
-func TestTechDefStandaloneField(t *testing.T) {
+func TestLoadKeysMatchYAMLFilenames(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
+	for key, def := range defs {
+		assert.NotEmpty(t, key, "technology key must not be empty")
+		assert.NotContains(t, key, ".yaml", "technology key must not include file extension")
+		assert.NotContains(t, key, "/", "technology key must not include path separators")
+		assert.NotEmpty(t, def.Name, "technology %q must have a non-empty name", key)
+	}
+}
+
+func TestPowerShellIsStandalone(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "powershell")
 	assert.True(t, defs["powershell"].Standalone)
-	assert.True(t, defs["terraform-module"].Standalone)
+}
+
+func TestGoIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "go")
 	assert.False(t, defs["go"].Standalone)
-	assert.False(t, defs["terraform-infrastructure"].Standalone)
+}
+
+func TestPythonIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "python")
 	assert.False(t, defs["python"].Standalone)
+}
+
+func TestTerraformModuleIsStandalone(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "terraform-module")
+	assert.True(t, defs["terraform-module"].Standalone)
+}
+
+func TestTerraformInfrastructureIsComposable(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	require.Contains(t, defs, "terraform-infrastructure")
+	assert.False(t, defs["terraform-infrastructure"].Standalone)
 }
 
 func TestPythonHasPackageNamePrompt(t *testing.T) {

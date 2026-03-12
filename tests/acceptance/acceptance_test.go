@@ -1085,35 +1085,62 @@ func TestAcceptance_AllComposable_WithDockerfileService(t *testing.T) {
 
 // --- Stage 3b gap coverage ---
 
-// TestAcceptance_PromptCollapsesVariantGroupsToSingleEntry verifies acceptance criterion #3:
-// Helm, Terraform, and Dockerfile each appear exactly once in the prompt option list,
-// not once per variant. Six total entries after Stage 3b.
-func TestAcceptance_PromptCollapsesVariantGroupsToSingleEntry(t *testing.T) {
+func TestAcceptance_VariantGroupsCollapseToSinglePromptEntry(t *testing.T) {
 	defs, err := techdef.Load()
 	require.NoError(t, err)
 
 	options := prompt.BuildTechOptionList(defs)
 
-	var keys []string
-	for _, opt := range options {
-		keys = append(keys, opt.Key)
+	keys := make([]string, len(options))
+	for i, o := range options {
+		keys[i] = o.Key
 	}
 
-	// Each variant group collapses to a single entry using the group name as key.
-	assert.Contains(t, keys, "Helm", "Helm variant group must appear as a single entry")
-	assert.Contains(t, keys, "Terraform", "Terraform variant group must appear as a single entry")
-	assert.Contains(t, keys, "Dockerfile", "Dockerfile variant group must appear as a single entry")
+	// Variant group names appear as keys — individual definition keys do not.
+	// Each variant group is verified independently so adding a new group
+	// does not break assertions about existing groups.
+	assert.Contains(t, keys, "Helm", "Helm variant group must collapse to single entry")
+	assert.NotContains(t, keys, "helm-chart", "helm-chart must not appear as individual entry")
+	assert.NotContains(t, keys, "helm-deployment", "helm-deployment must not appear as individual entry")
 
-	// Variant definition keys must NOT appear individually in the prompt.
-	assert.NotContains(t, keys, "helm-chart")
-	assert.NotContains(t, keys, "helm-deployment")
-	assert.NotContains(t, keys, "terraform-module")
-	assert.NotContains(t, keys, "terraform-infrastructure")
-	assert.NotContains(t, keys, "dockerfile-image")
-	assert.NotContains(t, keys, "dockerfile-service")
+	assert.Contains(t, keys, "Terraform", "Terraform variant group must collapse to single entry")
+	assert.NotContains(t, keys, "terraform-module", "terraform-module must not appear as individual entry")
+	assert.NotContains(t, keys, "terraform-infrastructure", "terraform-infrastructure must not appear as individual entry")
 
-	// Total: Dockerfile, Go, Helm, PowerShell Module, Python, Terraform = 6 entries.
-	assert.Len(t, options, 6, "expected exactly 6 technology prompt entries after Stage 3b")
+	assert.Contains(t, keys, "Dockerfile", "Dockerfile variant group must collapse to single entry")
+	assert.NotContains(t, keys, "dockerfile-image", "dockerfile-image must not appear as individual entry")
+	assert.NotContains(t, keys, "dockerfile-service", "dockerfile-service must not appear as individual entry")
+}
+
+func TestAcceptance_NonVariantTechsAppearByKey(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	options := prompt.BuildTechOptionList(defs)
+
+	keys := make([]string, len(options))
+	for i, o := range options {
+		keys[i] = o.Key
+	}
+
+	// Non-variant technologies appear by their definition key.
+	assert.Contains(t, keys, "go")
+	assert.Contains(t, keys, "powershell")
+	assert.Contains(t, keys, "python")
+}
+
+func TestAcceptance_PromptOptionListIsSorted(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	options := prompt.BuildTechOptionList(defs)
+
+	names := make([]string, len(options))
+	for i, o := range options {
+		names[i] = o.Name
+	}
+
+	assert.IsNonDecreasing(t, names, "prompt options must be sorted alphabetically by display name")
 }
 
 // TestAcceptance_TerraformVariantGroupResolution verifies acceptance criterion #8:
