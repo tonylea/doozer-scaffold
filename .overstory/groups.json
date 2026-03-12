@@ -250,5 +250,15 @@
 		"status": "active",
 		"createdAt": "2026-03-12T09:29:56.513Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-2068f919",
+		"name": "hook-scope-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-e275"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T10:10:36.693Z",
+		"completedAt": null
 	}
 ]
