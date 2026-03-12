@@ -15,6 +15,17 @@ import (
 	"github.com/tonylea/doozer-scaffold/internal/techdef"
 )
 
+// resolveAndGenerate is a helper that resolves variant groups from display keys then generates.
+func resolveAndGenerate(t *testing.T, cfg *config.Config, baseDir string) {
+	t.Helper()
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+	resolvedTechs, _ := techdef.ResolveVariantGroups(cfg.Technologies, defs)
+	sort.Slice(resolvedTechs, func(i, j int) bool { return resolvedTechs[i].Name < resolvedTechs[j].Name })
+	err = scaffold.Generate(cfg, resolvedTechs, baseDir)
+	require.NoError(t, err)
+}
+
 func loadPowerShellDef(t *testing.T) *techdef.TechDef {
 	t.Helper()
 	defs, err := techdef.Load()
@@ -1070,4 +1081,285 @@ func TestAcceptance_AllComposable_WithDockerfileService(t *testing.T) {
 	tfSetupIdx := strings.Index(setupStr, "# === Terraform (Infrastructure) ===")
 	assert.Less(t, goSetupIdx, pySetupIdx)
 	assert.Less(t, pySetupIdx, tfSetupIdx)
+}
+
+// --- Stage 3b gap coverage ---
+
+// TestAcceptance_PromptCollapsesVariantGroupsToSingleEntry verifies acceptance criterion #3:
+// Helm, Terraform, and Dockerfile each appear exactly once in the prompt option list,
+// not once per variant. Six total entries after Stage 3b.
+func TestAcceptance_PromptCollapsesVariantGroupsToSingleEntry(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	options := prompt.BuildTechOptionList(defs)
+
+	var keys []string
+	for _, opt := range options {
+		keys = append(keys, opt.Key)
+	}
+
+	// Each variant group collapses to a single entry using the group name as key.
+	assert.Contains(t, keys, "Helm", "Helm variant group must appear as a single entry")
+	assert.Contains(t, keys, "Terraform", "Terraform variant group must appear as a single entry")
+	assert.Contains(t, keys, "Dockerfile", "Dockerfile variant group must appear as a single entry")
+
+	// Variant definition keys must NOT appear individually in the prompt.
+	assert.NotContains(t, keys, "helm-chart")
+	assert.NotContains(t, keys, "helm-deployment")
+	assert.NotContains(t, keys, "terraform-module")
+	assert.NotContains(t, keys, "terraform-infrastructure")
+	assert.NotContains(t, keys, "dockerfile-image")
+	assert.NotContains(t, keys, "dockerfile-service")
+
+	// Total: Dockerfile, Go, Helm, PowerShell Module, Python, Terraform = 6 entries.
+	assert.Len(t, options, 6, "expected exactly 6 technology prompt entries after Stage 3b")
+}
+
+// TestAcceptance_TerraformVariantGroupResolution verifies acceptance criterion #8:
+// Selecting "Terraform" alone resolves to the module (standalone) layout.
+// Selecting "Terraform" with Go resolves to the infrastructure (composable) layout.
+func TestAcceptance_TerraformVariantGroupResolution(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	// Sole "Terraform" → terraform-module (standalone)
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"Terraform"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, "Terraform Module", resolved[0].Name)
+	assert.True(t, resolved[0].Standalone)
+	assert.Equal(t, "standalone", modeMap["Terraform"])
+
+	// "Terraform" + go → terraform-infrastructure (composable)
+	resolved2, modeMap2 := techdef.ResolveVariantGroups([]string{"Terraform", "go"}, defs)
+	require.Len(t, resolved2, 2)
+	var tfDef *techdef.TechDef
+	for _, d := range resolved2 {
+		if d.VariantGroup == "Terraform" {
+			tfDef = d
+		}
+	}
+	require.NotNil(t, tfDef, "Terraform definition must be in resolved list")
+	assert.Equal(t, "Terraform (Infrastructure)", tfDef.Name)
+	assert.False(t, tfDef.Standalone)
+	assert.Equal(t, "composable", modeMap2["Terraform"])
+
+	// Sole "Terraform" scaffolds module layout (root-level .tf files, no infrastructure/ dir)
+	soleCfg := &config.Config{
+		ProjectName:  "my-tf",
+		Provider:     "github",
+		Technologies: []string{"Terraform"},
+		Licence:      "none",
+		Docs:         []string{},
+		Tooling:      []string{},
+		RepoConfig:   []string{},
+		Confirmed:    true,
+	}
+	baseDir := t.TempDir()
+	resolveAndGenerate(t, soleCfg, baseDir)
+	root := filepath.Join(baseDir, "my-tf")
+	assert.FileExists(t, filepath.Join(root, "main.tf"), "standalone Terraform must scaffold root main.tf")
+	assert.NoDirExists(t, filepath.Join(root, "infrastructure"), "standalone Terraform must not create infrastructure/ dir")
+
+	// "Terraform" + go scaffolds infrastructure layout (infrastructure/ subdir, no root main.tf)
+	comboCfg := &config.Config{
+		ProjectName:  "my-app",
+		Provider:     "github",
+		Technologies: []string{"Terraform", "go"},
+		Licence:      "none",
+		Docs:         []string{},
+		Tooling:      []string{},
+		RepoConfig:   []string{},
+		Confirmed:    true,
+	}
+	baseDir2 := t.TempDir()
+	resolveAndGenerate(t, comboCfg, baseDir2)
+	root2 := filepath.Join(baseDir2, "my-app")
+	assert.FileExists(t, filepath.Join(root2, "infrastructure/main.tf"), "composable Terraform must scaffold infrastructure/main.tf")
+	assert.NoFileExists(t, filepath.Join(root2, "main.tf"), "composable Terraform must not scaffold root main.tf")
+}
+
+// TestAcceptance_DockerfileVariantGroupResolution verifies acceptance criterion #9:
+// Selecting "Dockerfile" alone resolves to the image (standalone) layout.
+// Selecting "Dockerfile" with Go resolves to the service (composable) layout.
+func TestAcceptance_DockerfileVariantGroupResolution(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	// Sole "Dockerfile" → dockerfile-image (standalone)
+	resolved, modeMap := techdef.ResolveVariantGroups([]string{"Dockerfile"}, defs)
+	require.Len(t, resolved, 1)
+	assert.Equal(t, "Dockerfile (Image)", resolved[0].Name)
+	assert.True(t, resolved[0].Standalone)
+	assert.Equal(t, "standalone", modeMap["Dockerfile"])
+
+	// "Dockerfile" + go → dockerfile-service (composable)
+	resolved2, modeMap2 := techdef.ResolveVariantGroups([]string{"Dockerfile", "go"}, defs)
+	require.Len(t, resolved2, 2)
+	var dfDef *techdef.TechDef
+	for _, d := range resolved2 {
+		if d.VariantGroup == "Dockerfile" {
+			dfDef = d
+		}
+	}
+	require.NotNil(t, dfDef, "Dockerfile definition must be in resolved list")
+	assert.Equal(t, "Dockerfile (Service)", dfDef.Name)
+	assert.False(t, dfDef.Standalone)
+	assert.Equal(t, "composable", modeMap2["Dockerfile"])
+
+	// Sole "Dockerfile" scaffolds image layout (root-level Dockerfile)
+	soleCfg := &config.Config{
+		ProjectName:  "my-image",
+		Provider:     "github",
+		Technologies: []string{"Dockerfile"},
+		Licence:      "none",
+		Docs:         []string{},
+		Tooling:      []string{},
+		RepoConfig:   []string{},
+		Confirmed:    true,
+	}
+	baseDir := t.TempDir()
+	resolveAndGenerate(t, soleCfg, baseDir)
+	root := filepath.Join(baseDir, "my-image")
+	assert.FileExists(t, filepath.Join(root, "Dockerfile"), "standalone Dockerfile must scaffold root Dockerfile")
+	assert.NoDirExists(t, filepath.Join(root, "docker"), "standalone Dockerfile must not create docker/ dir")
+
+	// "Dockerfile" + go scaffolds service layout (docker/ subdir, no root Dockerfile)
+	comboCfg := &config.Config{
+		ProjectName:  "my-service",
+		Provider:     "github",
+		Technologies: []string{"Dockerfile", "go"},
+		Licence:      "none",
+		Docs:         []string{},
+		Tooling:      []string{},
+		RepoConfig:   []string{},
+		Confirmed:    true,
+	}
+	baseDir2 := t.TempDir()
+	resolveAndGenerate(t, comboCfg, baseDir2)
+	root2 := filepath.Join(baseDir2, "my-service")
+	assert.FileExists(t, filepath.Join(root2, "docker/Dockerfile"), "composable Dockerfile must scaffold docker/Dockerfile")
+	assert.NoFileExists(t, filepath.Join(root2, "Dockerfile"), "composable Dockerfile must not scaffold root Dockerfile")
+}
+
+// TestAcceptance_HelmComposableGitignoreSection verifies acceptance criterion #16:
+// The .gitignore includes the Helm section in the composable variant (Helm + Go).
+func TestAcceptance_HelmComposableGitignoreSection(t *testing.T) {
+	chartName := "my-app"
+	cfg := &config.Config{
+		ProjectName:         "polyglot",
+		Provider:            "github",
+		Technologies:        []string{"Helm", "go"},
+		TechPromptResponses: map[string]string{"chart_name": chartName},
+		Licence:             "none",
+		Docs:                []string{},
+		Tooling:             []string{},
+		RepoConfig:          []string{},
+		Confirmed:           true,
+	}
+
+	baseDir := t.TempDir()
+	resolveAndGenerate(t, cfg, baseDir)
+	root := filepath.Join(baseDir, "polyglot")
+
+	gitignore, err := os.ReadFile(filepath.Join(root, ".gitignore"))
+	require.NoError(t, err)
+	gitignoreStr := string(gitignore)
+
+	assert.Contains(t, gitignoreStr, "# Helm", "composable Helm .gitignore must contain Helm section")
+	assert.Contains(t, gitignoreStr, "*.tgz", "composable Helm .gitignore must ignore .tgz chart archives")
+}
+
+// TestAcceptance_HelmDevcontainerSetupCommands verifies acceptance criterion #17:
+// The devcontainer setup.sh includes the Helm install script and helm-unittest plugin
+// for both standalone and composable variants.
+func TestAcceptance_HelmDevcontainerSetupCommands(t *testing.T) {
+	t.Run("standalone", func(t *testing.T) {
+		cfg := &config.Config{
+			ProjectName:  "my-chart",
+			Provider:     "github",
+			Technologies: []string{"Helm"},
+			Licence:      "none",
+			Docs:         []string{},
+			Tooling:      []string{},
+			RepoConfig:   []string{},
+			Confirmed:    true,
+		}
+		baseDir := t.TempDir()
+		resolveAndGenerate(t, cfg, baseDir)
+		root := filepath.Join(baseDir, "my-chart")
+
+		setup, err := os.ReadFile(filepath.Join(root, ".devcontainer/setup.sh"))
+		require.NoError(t, err)
+		setupStr := string(setup)
+		assert.Contains(t, setupStr, "get-helm-3", "setup.sh must include Helm install script")
+		assert.Contains(t, setupStr, "helm-unittest", "setup.sh must include helm-unittest plugin install")
+	})
+
+	t.Run("composable", func(t *testing.T) {
+		cfg := &config.Config{
+			ProjectName:         "my-app",
+			Provider:            "github",
+			Technologies:        []string{"Helm", "go"},
+			TechPromptResponses: map[string]string{"chart_name": "my-chart"},
+			Licence:             "none",
+			Docs:                []string{},
+			Tooling:             []string{},
+			RepoConfig:          []string{},
+			Confirmed:           true,
+		}
+		baseDir := t.TempDir()
+		resolveAndGenerate(t, cfg, baseDir)
+		root := filepath.Join(baseDir, "my-app")
+
+		setup, err := os.ReadFile(filepath.Join(root, ".devcontainer/setup.sh"))
+		require.NoError(t, err)
+		setupStr := string(setup)
+		assert.Contains(t, setupStr, "get-helm-3", "setup.sh must include Helm install script")
+		assert.Contains(t, setupStr, "helm-unittest", "setup.sh must include helm-unittest plugin install")
+	})
+}
+
+// TestAcceptance_HelmComposableNoPathConflicts verifies acceptance criterion #15:
+// Composable Helm has no file path conflicts with other composable technologies
+// (Go, Python, Terraform Infrastructure, Dockerfile Service).
+func TestAcceptance_HelmComposableNoPathConflicts(t *testing.T) {
+	defs, err := techdef.Load()
+	require.NoError(t, err)
+
+	chartName := "my-chart"
+	cfg := &config.Config{
+		ProjectName:         "kitchen-sink",
+		Provider:            "github",
+		Technologies:        []string{"Helm", "Dockerfile", "go", "python", "Terraform"},
+		TechPromptResponses: map[string]string{"chart_name": chartName, "package_name": "kitchen_sink"},
+		Licence:             "none",
+		Docs:                []string{},
+		Tooling:             []string{},
+		RepoConfig:          []string{},
+		Confirmed:           true,
+	}
+
+	resolvedTechs, _ := techdef.ResolveVariantGroups(cfg.Technologies, defs)
+	sort.Slice(resolvedTechs, func(i, j int) bool { return resolvedTechs[i].Name < resolvedTechs[j].Name })
+
+	baseDir := t.TempDir()
+	// Generate must not return an error (no path conflicts at engine level)
+	err = scaffold.Generate(cfg, resolvedTechs, baseDir)
+	require.NoError(t, err, "scaffold.Generate must not error due to path conflicts")
+
+	root := filepath.Join(baseDir, "kitchen-sink")
+
+	// Helm composable output is under deploy/helm/<chart_name>/ — separate from all others
+	assert.DirExists(t, filepath.Join(root, "deploy/helm", chartName))
+	assert.FileExists(t, filepath.Join(root, "deploy/helm", chartName, "Chart.yaml"))
+
+	// Other composable technologies each occupy their own unique paths
+	assert.DirExists(t, filepath.Join(root, "docker"), "Dockerfile (Service) must use docker/")
+	assert.DirExists(t, filepath.Join(root, "cmd/app"), "Go must use cmd/app/")
+	assert.DirExists(t, filepath.Join(root, "infrastructure"), "Terraform (Infrastructure) must use infrastructure/")
+	assert.DirExists(t, filepath.Join(root, "src/kitchen_sink"), "Python must use src/<package>/")
+
+	// No root-level Chart.yaml (would indicate standalone variant was incorrectly chosen)
+	assert.NoFileExists(t, filepath.Join(root, "Chart.yaml"))
 }
