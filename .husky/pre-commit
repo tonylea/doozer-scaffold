@@ -8,8 +8,12 @@ if [ -n "$STAGED_MD" ]; then
   npx markdownlint-cli2 $STAGED_MD
 fi
 
-# Spell-check all staged files (cspell.json ignorePaths handles exclusions)
-STAGED_SPELL=$(git diff --cached --name-only --diff-filter=ACM || true)
+# Spell-check staged source files (exclude paths in cspell.json ignorePaths)
+STAGED_SPELL=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -vE '^(design-docs/|node_modules/|\.seeds/|\.mulch/|\.overstory/|\.husky/|\.claude/|\.github/)' \
+  | grep -vE '^(AGENTS\.md|package\.json|package-lock\.json|Makefile|\.gitignore|\.editorconfig|go\.sum|go\.mod)$' \
+  | grep -vE '\.(yml|yaml)$' \
+  || true)
 if [ -n "$STAGED_SPELL" ]; then
   echo "Running cspell on staged files..."
   # shellcheck disable=SC2086
