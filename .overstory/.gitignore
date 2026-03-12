@@ -9,3 +9,5 @@
 !agent-defs/
 !agent-defs/**
 !README.md
+!memory/
+!memory/**
