@@ -230,5 +230,15 @@
 		"status": "completed",
 		"createdAt": "2026-03-11T22:04:24.073Z",
 		"completedAt": "2026-03-11T23:47:26.309Z"
+	},
+	{
+		"id": "group-dd05484c",
+		"name": "stage-3b-acceptance-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-fe5a"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T00:04:04.703Z",
+		"completedAt": null
 	}
 ]
