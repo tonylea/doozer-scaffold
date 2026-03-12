@@ -260,5 +260,15 @@
 		"status": "active",
 		"createdAt": "2026-03-12T10:10:36.693Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-4412b029",
+		"name": "hook-regression-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-adc3"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T10:16:23.927Z",
+		"completedAt": null
 	}
 ]
