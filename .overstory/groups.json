@@ -270,5 +270,15 @@
 		"status": "active",
 		"createdAt": "2026-03-12T10:16:23.927Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-c5d20089",
+		"name": "ci-node24-update",
+		"memberIssueIds": [
+			"doozer-scaffold-5062"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T10:40:47.581Z",
+		"completedAt": null
 	}
 ]
