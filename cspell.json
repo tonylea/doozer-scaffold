@@ -50,6 +50,10 @@
     "regulardef",
     "badmode",
     "helmignore",
-    "serviceaccount"
+    "serviceaccount",
+    "oneline",
+    "reflog",
+    "worktree",
+    "worktrees"
   ]
 }
