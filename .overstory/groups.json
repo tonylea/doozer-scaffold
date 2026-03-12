@@ -237,8 +237,18 @@
 		"memberIssueIds": [
 			"doozer-scaffold-fe5a"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-12T00:04:04.703Z",
+		"completedAt": "2026-03-12T09:28:26.111Z"
+	},
+	{
+		"id": "group-a8a667cc",
+		"name": "cspell-ci-fix",
+		"memberIssueIds": [
+			"doozer-scaffold-ff40"
+		],
+		"status": "active",
+		"createdAt": "2026-03-12T09:29:56.513Z",
 		"completedAt": null
 	}
 ]
